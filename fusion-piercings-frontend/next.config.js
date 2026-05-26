@@ -10,7 +10,6 @@ const nextConfig = {
       },
     ],
   },
-  // Add these two blocks right here below the images object:
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -19,4 +18,5 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Change this line right here:
+module.exports = nextConfig;
