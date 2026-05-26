@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Playfair_Display } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
+import WhatsAppWidget from '@/components/WhatsAppWidget';
 import './globals.css';
 
 const inter = Inter({
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body>
         <CartProvider>{children}</CartProvider>
+        <WhatsAppWidget />
       </body>
     </html>
   );

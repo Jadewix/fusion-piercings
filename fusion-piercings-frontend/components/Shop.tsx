@@ -9,12 +9,22 @@ const PLACEMENTS = ['all', 'ear', 'nose', 'belly'];
 
 const METALS = [
   {
+    key:         'all',
+    label:       'All Metals',
+    description: 'Gold & Titanium',
+    activeBg:    '#F5F4F2',
+    activeBorder:'#1a1a1a',
+    activeText:  '#1a1a1a',
+    orb:         'linear-gradient(135deg, #C8922E 0%, #C8922E 50%, #6898B8 50%, #6898B8 100%)',
+  },
+  {
     key:         'gold',
     label:       '14k Gold',
     description: 'Solid gold · Hypoallergenic',
     activeBg:    '#FBF7EF',
     activeBorder:'#C8922E',
     activeText:  '#8A6030',
+    orb:         null,
   },
   {
     key:         'titanium',
@@ -23,6 +33,7 @@ const METALS = [
     activeBg:    '#F0F5FA',
     activeBorder:'#6898B8',
     activeText:  '#3A6888',
+    orb:         null,
   },
 ];
 
@@ -31,7 +42,7 @@ interface Props {
 }
 
 export default function Shop({ onOpenModal }: Props) {
-  const [activeMetal, setActiveMetal]       = useState<string>('gold');
+  const [activeMetal, setActiveMetal]       = useState<string>('all');
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,7 +71,7 @@ export default function Shop({ onOpenModal }: Props) {
   };
 
   const filtered = products.filter(p => {
-    const metalMatch = p.metal === activeMetal;
+    const metalMatch = activeMetal === 'all' || (p.metal || 'gold') === activeMetal;
     const catMatch   = activeCategory === 'all' || p.category === activeCategory;
     return metalMatch && catMatch;
   });
@@ -88,9 +99,10 @@ export default function Shop({ onOpenModal }: Props) {
         </div>
 
         {/* ── Step 1: Metal selector ──────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 mb-8 w-full max-w-lg">
+        <div className="grid grid-cols-3 gap-3 mb-8 w-full max-w-2xl">
           {METALS.map(metal => {
             const isActive = activeMetal === metal.key;
+            const orbBg    = metal.orb ?? (METAL_DOT_GRADIENT as any)[metal.key];
             return (
               <button
                 key={metal.key}
@@ -102,10 +114,9 @@ export default function Shop({ onOpenModal }: Props) {
                     : 'border-border-lt bg-bg-card hover:border-border hover:shadow-sm'
                 }`}
               >
-                {/* Gradient orb — uses the same dot gradient as product cards */}
                 <span
                   className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex-shrink-0"
-                  style={{ background: METAL_DOT_GRADIENT[metal.key] }}
+                  style={{ background: orbBg }}
                 />
                 <div>
                   <p

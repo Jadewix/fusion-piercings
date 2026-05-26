@@ -65,14 +65,18 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
 
             const res = await fetch(url, {
                 method,
-                body: formData, // Notice we don't use JSON.stringify here because of the file!
+                body: formData,
             });
 
             if (!res.ok) throw new Error('Failed to save product');
 
-            // Sync stock status for existing products
-            if (isEditing) {
-                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${product.id}/stock`, {
+            const saved = await res.json();
+            const productId = isEditing ? product.id : saved.product.id;
+
+            // Sync stock: always when editing; for new products only if marked out-of-stock
+            // (new products default to stock_count=999 in the DB, so skip the PATCH if in-stock)
+            if (isEditing || !inStock) {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: inStock ? 'in_stock' : 'out_of_stock' }),
@@ -156,9 +160,8 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                         required={!isEditing}
                     />
 
-                    {/* Availability toggle — only relevant when editing an existing product */}
-                    {isEditing && (
-                        <div className="mt-6 mb-2">
+                    {/* Availability toggle */}
+                    <div className="mt-6 mb-2">
                             <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">
                                 Availability
                             </label>
@@ -186,8 +189,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                     Out of Stock
                                 </button>
                             </div>
-                        </div>
-                    )}
+                    </div>
 
                     {/* Submit Button */}
                     <button

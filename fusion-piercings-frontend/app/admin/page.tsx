@@ -150,7 +150,16 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="flex-grow">
-                    <div className="text-[0.65rem] font-semibold tracking-[0.2em] uppercase text-ink-3 mb-1">{product.category || 'Collection'}</div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[0.65rem] font-semibold tracking-[0.2em] uppercase text-ink-3">{product.category || 'Collection'}</span>
+                        <span className={`text-[0.6rem] font-bold tracking-[0.15em] uppercase px-2 py-0.5 rounded-full border ${
+                            (product.metal || 'gold') === 'titanium'
+                                ? 'border-blue-200 text-blue-500 bg-blue-50'
+                                : 'border-yellow-200 text-yellow-700 bg-yellow-50'
+                        }`}>
+                            {product.metal || 'gold'}
+                        </span>
+                    </div>
                     <h3 className="text-[1rem] font-medium text-ink">{product.name}</h3>
                 </div>
 

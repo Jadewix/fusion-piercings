@@ -51,7 +51,6 @@ export default function Nav() {
           {[
             { label: 'Home',    href: '/#home'    },
             { label: 'Shop',    href: '/#shop'    },
-            { label: 'Contact', href: '/contact'  },
           ].map(({ label, href }) => (
             <li key={label}>
               <a
@@ -95,7 +94,6 @@ export default function Nav() {
           {[
             { label: 'Home',    href: '/#home'   },
             { label: 'Shop',    href: '/#shop'   },
-            { label: 'Contact', href: '/contact' },
           ].map(({ label, href }) => (
             <a
               key={label}

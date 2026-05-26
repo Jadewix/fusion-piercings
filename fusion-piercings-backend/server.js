@@ -24,7 +24,7 @@ app.use(express.json());
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 5000, // Time out after 5 seconds if Supabase is hanging
+    connectionTimeoutMillis: 15000, // Give Supabase up to 15s to respond (longer for cold starts)
     idleTimeoutMillis: 30000       // Close idle connections after 30 seconds
 });
 
@@ -86,8 +86,8 @@ app.post('/api/products', upload.single('image'), async (req, res) => {
         const imageUrl = publicUrlData.publicUrl;
 
         const result = await pool.query(
-            `INSERT INTO products (name, description, price, image_url, category, metal, sizes) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            `INSERT INTO products (name, description, price, image_url, category, metal, sizes, stock_count)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 999) RETURNING *`,
             [name, description, price, imageUrl, category || 'ear', metal || 'gold', parsedSizes]
         );
 
@@ -176,7 +176,7 @@ app.get('/api/admin/inventory', async (req, res) => {
         const result = await pool.query('SELECT * FROM products ORDER BY stock_count ASC');
         const products = result.rows;
         const inventory = {
-            active:   products.filter(p => p.stock_count > 0),
+            active:   products.filter(p => p.stock_count === null || p.stock_count > 0),
             inactive: products.filter(p => p.stock_count === 0),
         };
         res.status(200).json(inventory);
@@ -191,6 +191,21 @@ app.post('/api/contact', async (req, res) => {
     if (!name || !email || !message) return res.status(400).json({ error: 'Name, email and message are required' });
     try {
         await pool.query(`INSERT INTO contact_messages (name, email, phone, message) VALUES ($1, $2, $3, $4)`, [name, email, phone || null, message]);
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: 'fusionsender0@gmail.com',
+            subject: `New Contact Message from ${name}`,
+            html: `
+                <h2>New Contact Form Submission</h2>
+                <p><strong>Name:</strong> ${name}</p>
+                <p><strong>Email:</strong> ${email}</p>
+                <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
+                <p><strong>Message:</strong></p>
+                <p>${message}</p>
+            `,
+        });
+
         res.status(201).json({ ok: true });
     } catch (error) {
         console.error('Error saving contact message:', error);
@@ -372,13 +387,29 @@ async function initDB() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    // Backfill any products that were inserted before stock_count was required.
+    // Sets them to 999 (in stock) so they appear on the storefront.
+    await pool.query(`
+        UPDATE products SET stock_count = 999 WHERE stock_count IS NULL
+    `);
     console.log('Database ready');
 }
 
 const PORT = process.env.PORT || 5000;
-initDB().then(() => {
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}).catch(err => {
-    console.error('Failed to initialize DB:', err);
-    process.exit(1);
-});
+
+async function startWithRetry(attemptsLeft = 5) {
+    try {
+        await initDB();
+        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    } catch (err) {
+        console.error(`DB init failed (${attemptsLeft} attempts left):`, err.message);
+        if (attemptsLeft <= 1) {
+            console.error('Could not connect to database. Is the Supabase project paused?');
+            process.exit(1);
+        }
+        console.log('Retrying in 5 seconds...');
+        setTimeout(() => startWithRetry(attemptsLeft - 1), 5000);
+    }
+}
+
+startWithRetry();
