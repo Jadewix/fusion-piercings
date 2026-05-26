@@ -12,6 +12,7 @@ export interface Product {
   category?: string;
   metal?: string;
   sizes?: string[];
+  symbol?: string;        // <-- Add this line right here!
 }
 
 export interface CartItem {
