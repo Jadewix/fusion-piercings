@@ -13,6 +13,7 @@ export default function CheckoutPage() {
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
+        email: '',
         phone: '',
         city: '',
         address: '',
@@ -37,6 +38,7 @@ export default function CheckoutPage() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    // --- UPDATED SUBMIT FUNCTION ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -49,18 +51,20 @@ export default function CheckoutPage() {
                 body: JSON.stringify({
                     ...formData,
                     items: cart,
+                    // THESE THREE LINES MUST MATCH THE BACKEND EXACTLY:
                     subtotal: cartTotal,
-                    deliveryFee,
+                    deliveryFee: deliveryFee,
                     total: finalTotal,
                 }),
             });
 
             if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || 'Failed to place order');
+                const errorData = await res.json().catch(() => null);
+                throw new Error(errorData?.error || 'Failed to place order');
             }
 
             const data = await res.json();
+
             setOrderId(data.orderId);
             clearCart();
             setIsSuccess(true);
@@ -113,14 +117,22 @@ export default function CheckoutPage() {
                         </h2>
 
                         <div className="grid grid-cols-2 gap-4 mb-4">
-                            <input required name="firstName" value={formData.firstName} onChange={handleChange} placeholder="First Name" className={inputClass} />
-                            <input required name="lastName" value={formData.lastName} onChange={handleChange} placeholder="Last Name" className={inputClass} />
+                            <input required name="firstName" value={formData.firstName} onChange={handleChange}
+                                   placeholder="First Name" className={inputClass}/>
+                            <input required name="lastName" value={formData.lastName} onChange={handleChange}
+                                   placeholder="Last Name" className={inputClass}/>
                         </div>
+                        <input required name="email" type="email" value={formData.email} onChange={handleChange}
+                               placeholder="Email Address (For your receipt)" className={`${inputClass} mb-4`}/>
 
-                        <input required name="phone" type="tel" value={formData.phone} onChange={handleChange} placeholder="Phone Number (e.g., 70 123 456)" className={`${inputClass} mb-4`} />
-                        <input required name="city" value={formData.city} onChange={handleChange} placeholder="City / Region" className={`${inputClass} mb-4`} />
-                        <input required name="address" value={formData.address} onChange={handleChange} placeholder="Street Address" className={`${inputClass} mb-4`} />
-                        <input name="building" value={formData.building} onChange={handleChange} placeholder="Building, Floor, Apartment (Optional)" className={`${inputClass} mb-8`} />
+                        <input required name="phone" type="tel" value={formData.phone} onChange={handleChange}
+                               placeholder="Phone Number (e.g., 70 123 456)" className={`${inputClass} mb-4`}/>
+                        <input required name="city" value={formData.city} onChange={handleChange}
+                               placeholder="City / Region" className={`${inputClass} mb-4`}/>
+                        <input required name="address" value={formData.address} onChange={handleChange}
+                               placeholder="Street Address" className={`${inputClass} mb-4`}/>
+                        <input name="building" value={formData.building} onChange={handleChange}
+                               placeholder="Building, Floor, Apartment (Optional)" className={`${inputClass} mb-8`}/>
 
                         <h2 className="text-[0.7rem] font-semibold tracking-[0.16em] uppercase text-ink-3 mb-6 border-b border-border-lt pb-3">
                             Payment Method
@@ -128,7 +140,7 @@ export default function CheckoutPage() {
 
                         <div className="border border-ink rounded-sm p-4 mb-8 bg-ink/5">
                             <div className="flex items-center gap-3">
-                                <div className="w-4 h-4 rounded-full border-[5px] border-ink flex-shrink-0" />
+                                <div className="w-4 h-4 rounded-full border-[5px] border-ink flex-shrink-0"/>
                                 <span className="text-[0.9rem] font-medium text-ink">Cash on Delivery (COD)</span>
                             </div>
                             <p className="text-[0.75rem] text-ink-2 mt-2 ml-7">
