@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; overflow-x: hidden; }
+  body { @apply bg-bg text-ink antialiased overflow-x-hidden; }
+  ::selection { @apply bg-gold text-white; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { @apply bg-bg; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gold; }
+}
+
+@layer utilities {
+  /* Nav link underline */
+  .nav-link-line::after {
+    content: '';
+    position: absolute;
+    bottom: -4px; left: 0;
+    width: 0; height: 1px;
+    background: #B8965A;
+    transition: width 0.25s cubic-bezier(0.4,0,0.2,1);
+  }
+  .nav-link-line:hover::after { width: 100%; }
+
+  /* Section label gold rule */
+  .section-label-line::before {
+    content: '';
+    display: inline-block;
+    width: 20px; height: 1px;
+    background: #B8965A;
+    flex-shrink: 0;
+  }
+
+  /* Metallic image shine overlay */
+  .metal-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg,rgba(255,255,255,0.28) 0%,transparent 50%,rgba(0,0,0,0.04) 100%);
+    pointer-events: none;
+  }
+}
