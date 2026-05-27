@@ -108,19 +108,19 @@ export default function Shop({ onOpenModal }: Props) {
                 key={metal.key}
                 onClick={() => handleMetalChange(metal.key)}
                 style={isActive ? { background: metal.activeBg, borderColor: metal.activeBorder } : {}}
-                className={`flex items-center gap-3 px-3 py-4 sm:px-6 sm:py-5 rounded-sm border-2 text-left transition-all duration-200 ${
+                className={`flex items-center gap-2 sm:gap-3 px-2.5 py-3.5 sm:px-6 sm:py-5 rounded-sm border-2 text-left transition-all duration-200 ${
                   isActive
                     ? 'shadow-sm'
                     : 'border-border-lt bg-bg-card hover:border-border hover:shadow-sm'
                 }`}
               >
                 <span
-                  className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex-shrink-0"
+                  className="w-6 h-6 sm:w-9 sm:h-9 rounded-full flex-shrink-0"
                   style={{ background: orbBg }}
                 />
-                <div>
+                <div className="min-w-0">
                   <p
-                    className="text-[0.82rem] sm:text-[0.95rem] font-semibold font-serif leading-tight"
+                    className="text-[0.78rem] sm:text-[0.95rem] font-semibold font-sans sm:font-serif leading-tight tracking-tight sm:tracking-normal"
                     style={isActive ? { color: metal.activeText } : { color: 'var(--color-ink)' }}
                   >
                     {metal.label}
