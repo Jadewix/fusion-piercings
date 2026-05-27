@@ -1,34 +1,51 @@
 require('dotenv').config();
-const nodemailer = require('nodemailer');
-
-// Set up the Email Sender
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
+// --- NEW BREVO EMAIL SETUP ---
+// We use native fetch to bypass Render's strict SMTP firewall.
+async function sendBrevoEmail(toEmail, toName, subject, htmlContent) {
+    try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+                'accept': 'application/json',
+                'api-key': process.env.BREVO_API_KEY,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+                sender: { name: "Fusion Piercings", email: process.env.EMAIL_USER },
+                to: [{ email: toEmail, name: toName }],
+                subject: subject,
+                htmlContent: htmlContent
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error("Brevo API Error:", errText);
+        }
+    } catch (err) {
+        console.error("Failed to connect to Brevo:", err);
+    }
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // 1. Initialize PostgreSQL
-// 1. Initialize PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 15000, // Give Supabase up to 15s to respond (longer for cold starts)
-    idleTimeoutMillis: 30000       // Close idle connections after 30 seconds
+    connectionTimeoutMillis: 15000,
+    idleTimeoutMillis: 30000
 });
 
-// ADD THIS: Catch background database connection drops so they don't crash the server!
+// Catch background database connection drops
 pool.on('error', (err, client) => {
     console.error('Idle database connection dropped by Supabase/Network:', err.message);
 });
@@ -192,19 +209,20 @@ app.post('/api/contact', async (req, res) => {
     try {
         await pool.query(`INSERT INTO contact_messages (name, email, phone, message) VALUES ($1, $2, $3, $4)`, [name, email, phone || null, message]);
 
-        await transporter.sendMail({
-            from: process.env.EMAIL_USER,
-            to: 'fusionsender0@gmail.com',
-            subject: `New Contact Message from ${name}`,
-            html: `
+        // Send email to owner using Brevo
+        await sendBrevoEmail(
+            process.env.EMAIL_USER,
+            'Fusion Owner',
+            `New Contact Message from ${name}`,
+            `
                 <h2>New Contact Form Submission</h2>
                 <p><strong>Name:</strong> ${name}</p>
                 <p><strong>Email:</strong> ${email}</p>
                 <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
                 <p><strong>Message:</strong></p>
                 <p>${message}</p>
-            `,
-        });
+            `
+        );
 
         res.status(201).json({ ok: true });
     } catch (error) {
@@ -230,7 +248,6 @@ app.get('/api/admin/orders', async (req, res) => {
 });
 
 // --- THE ONE AND ONLY CHECKOUT ROUTE ---
-// --- THE ONE AND ONLY CHECKOUT ROUTE ---
 app.post('/api/orders', async (req, res) => {
     const { firstName, lastName, email, phone, city, address, building, items, subtotal, deliveryFee, total } = req.body;
 
@@ -246,8 +263,7 @@ app.post('/api/orders', async (req, res) => {
 
         const newOrder = result.rows[0];
 
-        // --- NEW: STYLED EMAIL HTML GENERATOR ---
-        // We are formatting the cart items into a beautiful HTML table instead of basic bullet points
+        // --- STYLED EMAIL HTML GENERATOR ---
         const itemListHTML = items.map(item => `
             <tr>
                 <td style="padding: 16px 0; border-bottom: 1px solid #e5e5e5;">
@@ -262,7 +278,6 @@ app.post('/api/orders', async (req, res) => {
             </tr>
         `).join('');
 
-        // Shared Base Styling to match your website
         const emailWrapper = (content) => `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px 20px;">
                 <div style="text-align: center; padding-bottom: 30px; border-bottom: 1px solid #1a1a1a; margin-bottom: 30px;">
@@ -310,13 +325,12 @@ app.post('/api/orders', async (req, res) => {
             </table>
         `);
 
-        transporter.sendMail({
-            from: process.env.EMAIL_USER,
-            to: process.env.EMAIL_USER,
-            subject: `🚨 New Order #${newOrder.id} - ${firstName} ${lastName}`,
-            priority: 'high',
-            html: ownerHTML
-        }).catch(err => console.error("Failed to send owner email:", err));
+        sendBrevoEmail(
+            process.env.EMAIL_USER,
+            'Fusion Owner',
+            `🚨 New Order #${newOrder.id} - ${firstName} ${lastName}`,
+            ownerHTML
+        );
 
         // EMAIL 2: CLIENT RECEIPT
         if (email) {
@@ -344,12 +358,12 @@ app.post('/api/orders', async (req, res) => {
                 </table>
             `);
 
-            transporter.sendMail({
-                from: process.env.EMAIL_USER,
-                to: email,
-                subject: `Order Confirmation - Fusion Piercings #${newOrder.id}`,
-                html: clientHTML
-            }).catch(err => console.error("Failed to send client email:", err));
+            sendBrevoEmail(
+                email,
+                `${firstName} ${lastName}`,
+                `Order Confirmation - Fusion Piercings #${newOrder.id}`,
+                clientHTML
+            );
         }
 
     } catch (error) {
@@ -357,6 +371,7 @@ app.post('/api/orders', async (req, res) => {
         res.status(500).json({ error: "Failed to process the order" });
     }
 });
+
 // Database Initialization
 async function initDB() {
     await pool.query(`
