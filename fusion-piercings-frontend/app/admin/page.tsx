@@ -1,10 +1,12 @@
 // app/admin/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Product } from '@/lib/types';
 import AdminProductModal from '@/components/AdminProductModal';
+
+type ViewMode = 'active' | 'inactive';
 
 interface Inventory {
     active:   Product[];  // stock_count > 0  → visible in the storefront
@@ -25,10 +27,27 @@ export default function AdminDashboard() {
     const [isModalOpen, setIsModalOpen]       = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
+    // --- Inventory view toggle (dropdown) ---
+    const [viewMode, setViewMode]         = useState<ViewMode>('active');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef                     = useRef<HTMLDivElement>(null);
+
     // Restore session on mount so a page refresh doesn't log the admin out
     useEffect(() => {
         if (sessionStorage.getItem('admin_auth') === '1') setIsAuthed(true);
     }, []);
+
+    // Close the view dropdown when clicking outside of it
+    useEffect(() => {
+        if (!dropdownOpen) return;
+        const handleClick = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [dropdownOpen]);
 
     // Fetch inventory whenever auth is granted
     useEffect(() => {
@@ -218,25 +237,98 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Active Inventory — visible in the storefront */}
-                <section className="mb-12">
-                    <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-ink-3 border-b border-border-lt pb-3 mb-5">
-                        Active Inventory
-                    </h2>
-                    {inventory?.active?.length === 0
-                        ? <p className="text-ink-2 text-sm">No active products.</p>
-                        : inventory?.active?.map(p => <AdminProductRow key={p.id} product={p} />)}
-                </section>
+                {/* Inventory view selector — switch between Active (in storefront) and Inactive (hidden) */}
+                {(() => {
+                    const activeCount   = inventory?.active?.length   ?? 0;
+                    const inactiveCount = inventory?.inactive?.length ?? 0;
+                    const currentList   = viewMode === 'active' ? inventory?.active : inventory?.inactive;
+                    const isInactive    = viewMode === 'inactive';
 
-                {/* Inactive Inventory — hidden from the storefront */}
-                {inventory?.inactive?.length ? (
-                    <section className="mb-12">
-                        <h2 className="text-sm font-semibold tracking-[0.15em] uppercase text-red-400 border-b border-border-lt pb-3 mb-5">
-                            Inactive Inventory <span className="text-ink-3 normal-case font-normal tracking-normal ml-1">(hidden from storefront)</span>
-                        </h2>
-                        {inventory.inactive.map(p => <AdminProductRow key={p.id} product={p} />)}
-                    </section>
-                ) : null}
+                    const options: { key: ViewMode; label: string; count: number; color: string }[] = [
+                        { key: 'active',   label: 'Active Inventory',   count: activeCount,   color: 'text-ink'       },
+                        { key: 'inactive', label: 'Inactive Inventory', count: inactiveCount, color: 'text-red-400'   },
+                    ];
+
+                    return (
+                        <section className="mb-12">
+                            <div className="flex items-center justify-between gap-3 border-b border-border-lt pb-3 mb-5">
+                                <div ref={dropdownRef} className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDropdownOpen(o => !o)}
+                                        aria-haspopup="listbox"
+                                        aria-expanded={dropdownOpen}
+                                        className="flex items-center gap-2 text-sm font-semibold tracking-[0.15em] uppercase hover:opacity-80 transition-opacity"
+                                    >
+                                        <span className={isInactive ? 'text-red-400' : 'text-ink'}>
+                                            {isInactive ? 'Inactive Inventory' : 'Active Inventory'}
+                                        </span>
+                                        <span className="text-ink-3 font-normal tracking-normal normal-case text-[0.78rem]">
+                                            ({isInactive ? inactiveCount : activeCount})
+                                        </span>
+                                        <svg
+                                            className={`w-3.5 h-3.5 text-ink-3 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+                                            viewBox="0 0 20 20"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
+                                        </svg>
+                                    </button>
+
+                                    {dropdownOpen && (
+                                        <div
+                                            role="listbox"
+                                            className="absolute left-0 top-full mt-2 w-64 bg-bg-card border border-border rounded-sm shadow-md z-20 overflow-hidden animate-fade-in"
+                                        >
+                                            {options.map((opt, i) => {
+                                                const selected = viewMode === opt.key;
+                                                return (
+                                                    <button
+                                                        key={opt.key}
+                                                        role="option"
+                                                        aria-selected={selected}
+                                                        onClick={() => { setViewMode(opt.key); setDropdownOpen(false); }}
+                                                        className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-[0.72rem] font-semibold tracking-[0.15em] uppercase hover:bg-bg-warm transition-colors ${
+                                                            i > 0 ? 'border-t border-border-lt' : ''
+                                                        } ${selected ? 'bg-bg-warm' : ''}`}
+                                                    >
+                                                        <span className={`flex items-center gap-2 ${opt.color}`}>
+                                                            <svg
+                                                                className={`w-3.5 h-3.5 ${selected ? 'opacity-100' : 'opacity-0'}`}
+                                                                viewBox="0 0 20 20"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="2.5"
+                                                            >
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l3.5 3.5L15 6.5" />
+                                                            </svg>
+                                                            {opt.label}
+                                                        </span>
+                                                        <span className="text-ink-3 font-normal tracking-normal normal-case text-[0.72rem]">
+                                                            {opt.count}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {isInactive && (
+                                    <span className="text-[0.62rem] text-ink-3 italic hidden sm:inline">
+                                        hidden from storefront
+                                    </span>
+                                )}
+                            </div>
+
+                            {!currentList || currentList.length === 0
+                                ? <p className="text-ink-2 text-sm">No {viewMode} products.</p>
+                                : currentList.map(p => <AdminProductRow key={p.id} product={p} />)}
+                        </section>
+                    );
+                })()}
 
             </div>
 
