@@ -23,7 +23,7 @@
     background: #B8965A;
     transition: width 0.25s cubic-bezier(0.4,0,0.2,1);
   }
-  .nav-link-line:hover::after { width: 100%; }
+  .nav-link-line:hover::after, .nav-link-active::after { width: 100%; }
 
   /* Section label gold rule */
   .section-label-line::before {

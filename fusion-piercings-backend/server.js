@@ -422,6 +422,13 @@ async function initDB() {
     await pool.query(`
         UPDATE products SET stock_count = 999 WHERE stock_count IS NULL
     `);
+    // Add status column to orders if it doesn't exist yet (safe for existing tables)
+    await pool.query(`
+        DO $$ BEGIN
+            ALTER TABLE orders ADD COLUMN status VARCHAR DEFAULT 'pending';
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$
+    `);
     console.log('Database ready');
 }
 
