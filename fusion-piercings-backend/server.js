@@ -247,6 +247,21 @@ app.get('/api/admin/orders', async (req, res) => {
     }
 });
 
+app.patch('/api/admin/orders/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    const allowed = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    try {
+        const result = await pool.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+        res.status(200).json({ message: 'Status updated', order: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating order status:', error);
+        res.status(500).json({ error: 'Failed to update order status' });
+    }
+});
+
 // --- THE ONE AND ONLY CHECKOUT ROUTE ---
 app.post('/api/orders', async (req, res) => {
     const { firstName, lastName, email, phone, city, address, building, items, subtotal, deliveryFee, total } = req.body;
