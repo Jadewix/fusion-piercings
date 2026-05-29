@@ -33,6 +33,8 @@ const config: Config = {
       fontFamily: {
         sans:  ['var(--font-inter)',     'system-ui', 'sans-serif'],
         serif: ['var(--font-playfair)', 'Georgia',   'serif'],
+        logo:  ['Joane', 'Georgia', 'serif'],
+        logo2: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
       },
       animation: {
         'marquee':            'marquee 30s linear infinite',

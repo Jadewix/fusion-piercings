@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Playfair_Display } from 'next/font/google';
+import { Inter, Playfair_Display, Montserrat } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import './globals.css';
@@ -8,6 +8,13 @@ const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
   display: 'swap',
+});
+
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  variable: '--font-montserrat',
+  display: 'swap',
+  weight: ['300', '400'],
 });
 
 const playfair = Playfair_Display({
@@ -20,7 +27,7 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: 'Fusion Piercings — Premium Body Jewelry',
-  description: 'Precision-crafted titanium & 14k gold body jewelry for every expression.',
+  description: 'Precision-crafted titanium & gold plated surgical steel body jewelry for every expression.',
 };
 
 // Locks viewport to device width and disables pinch/double-tap zoom
@@ -33,7 +40,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+    <html lang="en" className={`${inter.variable} ${playfair.variable} ${montserrat.variable}`}>
       <body>
         <CartProvider>{children}</CartProvider>
         <WhatsAppWidget />

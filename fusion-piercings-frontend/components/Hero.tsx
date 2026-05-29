@@ -21,51 +21,37 @@ export default function Hero() {
       />
 
       {/* Main content */}
-      <div className="relative z-10 w-full max-w-[740px] mx-auto flex flex-col items-center">
+      <div className="relative z-10 w-full max-w-[740px] mx-auto flex flex-col items-center justify-evenly flex-1 gap-2">
 
         {/* Label */}
-        <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-8 section-label-line">
-          Est. 2026 — Premium Body Jewelry
+        <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk section-label-line">
+          Est. 2025 — Premium Body Jewelry
         </span>
 
-        {/* Logotype */}
-        <h1 className="flex flex-col items-center leading-none mb-6">
-          <span className="text-[clamp(3.8rem,11vw,9.5rem)] font-extrabold tracking-[0.04em] text-ink">
-            FUSION
-          </span>
-          <span className="font-serif italic text-[clamp(2.2rem,5.5vw,6rem)] font-normal text-gold-dk -mt-2">
-            Piercings
-          </span>
-        </h1>
+        {/* Logo + divider + tagline group */}
+        <div className="flex flex-col items-center">
+          <h1 className="flex items-center justify-center mb-4">
+            <img src="/img/Fusion-logo-svg.svg" alt="Fusion Piercings" className="w-[clamp(240px,45vw,420px)] h-auto" />
+          </h1>
 
-        {/* Gold ornament divider */}
-        <div className="flex items-center justify-center gap-3 mb-7">
-          <div className="h-px w-14 bg-gradient-to-r from-transparent to-gold/50" />
-          <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
-          <div className="h-px w-14 bg-gradient-to-l from-transparent to-gold/50" />
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="h-px w-14 bg-gradient-to-r from-transparent to-gold/50" />
+            <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
+            <div className="h-px w-14 bg-gradient-to-l from-transparent to-gold/50" />
+          </div>
+
+          <p className="text-[clamp(0.88rem,1.4vw,1rem)] text-ink-2 leading-[1.9] font-light max-w-md">
+            At FUSION we turn piercing into a luxury experience, an individualized approach, and unparalleled standards for health and safety.
+          </p>
         </div>
 
-        {/* Tagline */}
-        <p className="text-[clamp(0.88rem,1.4vw,1rem)] text-ink-2 leading-[1.9] font-light mb-10 max-w-sm">
-          Precision-crafted titanium &amp; 14k gold<br className="hidden sm:block" />
-          jewelry for every expression.
-        </p>
-
-        {/* CTAs */}
-        <div className="flex flex-wrap justify-center gap-4 mb-16">
-          <a
-            href="#shop"
-            className="inline-flex items-center bg-ink text-bg border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-[#2a2620] hover:-translate-y-px hover:shadow-md transition-all duration-200"
-          >
-            Shop Collection
-          </a>
-          <a
-            href="/contact"
-            className="inline-flex items-center bg-transparent text-ink border-[1.5px] border-border px-8 py-3.5 text-[0.78rem] font-medium tracking-[0.1em] uppercase rounded-sm hover:border-ink transition-all duration-200"
-          >
-            Contact Us
-          </a>
-        </div>
+        {/* CTA */}
+        <a
+          href="#shop"
+          className="inline-flex items-center bg-ink text-bg border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-[#2a2620] hover:-translate-y-px hover:shadow-md transition-all duration-200"
+        >
+          Shop Collection
+        </a>
 
         {/* Stats */}
         <div className="flex items-center justify-center divide-x divide-border">

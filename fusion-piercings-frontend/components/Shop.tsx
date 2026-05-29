@@ -19,8 +19,8 @@ const METALS = [
   },
   {
     key:         'gold',
-    label:       '14k Gold',
-    description: 'Solid gold · Hypoallergenic',
+    label:       'Gold Plated Surgical Steel',
+    description: 'Gold plated · Hypoallergenic',
     activeBg:    '#FBF7EF',
     activeBorder:'#C8922E',
     activeText:  '#8A6030',

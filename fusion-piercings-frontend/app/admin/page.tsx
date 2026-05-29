@@ -200,7 +200,7 @@ export default function AdminDashboard() {
             <div className="min-h-screen bg-bg flex items-center justify-center px-4">
                 <div className="w-full max-w-sm">
                     <div className="text-center mb-10">
-                        <h1 className="font-serif text-[2rem] font-semibold text-ink mb-2">Fusion Piercings</h1>
+                        <img src="/img/Fusion-logo-svg.svg" alt="Fusion Piercings" className="h-14 w-auto mx-auto mb-2" />
                         <p className="text-[0.75rem] font-semibold tracking-[0.2em] uppercase text-ink-3">Admin Access</p>
                     </div>
                     <form onSubmit={handleLogin} className="flex flex-col gap-4">

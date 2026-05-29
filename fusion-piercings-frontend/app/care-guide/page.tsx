@@ -224,7 +224,7 @@ export default function CareGuidePage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {[
                                 { title: 'Implant-Grade Titanium', badge: 'Recommended', badgeColor: 'border-green-200 text-green-600 bg-green-50', desc: 'The gold standard for piercings. Biocompatible, lightweight, and hypoallergenic. Ideal for fresh piercings and sensitive skin.' },
-                                { title: '14k Gold', badge: 'Premium', badgeColor: 'border-yellow-200 text-yellow-700 bg-yellow-50', desc: 'A luxurious, skin-safe option. Always choose solid 14k gold over gold-plated jewelry, which can flake and cause irritation.' },
+                                { title: 'Gold Plated Surgical Steel', badge: 'Premium', badgeColor: 'border-yellow-200 text-yellow-700 bg-yellow-50', desc: 'A durable, skin-safe option. Surgical steel provides strength and biocompatibility, while the gold plating adds a luxurious finish.' },
                                 { title: 'Nickel-Free Jewelry', badge: 'Essential', badgeColor: 'border-blue-200 text-blue-600 bg-blue-50', desc: 'Nickel is the most common cause of jewelry allergies. All Fusion Piercings jewelry is 100% nickel-free and allergy safe.' },
                                 { title: 'Why Quality Matters', badge: 'Important', badgeColor: 'border-purple-200 text-purple-600 bg-purple-50', desc: 'Low-quality metals cause reactions, slow healing, and increase infection risk. Investing in quality jewelry protects your piercing and your health.' },
                             ].map(item => (
