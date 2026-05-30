@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Product } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
+import { METAL_DOT_GRADIENT, METAL_LABELS } from '@/lib/products';
 
 interface Props {
   product: Product;
@@ -18,6 +19,11 @@ export default function ProductModal({ product, onClose }: Props) {
   const availableSizes = product.sizes && product.sizes.length > 0 ? product.sizes : ['One Size'];
   const [selectedSize, setSelectedSize] = useState(availableSizes[0]);
 
+  // Metal selector for "both" products
+  const isBothMetal = product.metal === 'both';
+  const metalOptions = ['gold', 'titanium'];
+  const [selectedMetal, setSelectedMetal] = useState<string>('gold');
+
   // Escape key + body scroll lock
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -30,7 +36,8 @@ export default function ProductModal({ product, onClose }: Props) {
   }, [onClose]);
 
   function handleAdd() {
-    addToCart(product, selectedSize);
+    const metalOverride = isBothMetal ? selectedMetal : undefined;
+    addToCart(product, selectedSize, metalOverride);
     onClose();
   }
 
@@ -90,6 +97,34 @@ export default function ProductModal({ product, onClose }: Props) {
                 <p className="text-sm text-ink-2 mb-5 line-clamp-2">
                   {product.description}
                 </p>
+            )}
+
+            {/* Metal selector (only for "both" products) */}
+            {isBothMetal && (
+                <div className="mb-5 mt-4">
+                  <p className="text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2.5">
+                    Metal
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {metalOptions.map(m => (
+                        <button
+                            key={m}
+                            onClick={() => setSelectedMetal(m)}
+                            className={`flex items-center gap-2 px-4 py-1.5 text-[0.78rem] font-medium rounded-full border transition-all duration-200 ${
+                                selectedMetal === m
+                                    ? 'bg-ink border-ink text-bg'
+                                    : 'bg-transparent border-border text-ink-2 hover:border-ink hover:text-ink'
+                            }`}
+                        >
+                          <span
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ background: METAL_DOT_GRADIENT[m] || '#D4AF37' }}
+                          />
+                          {METAL_LABELS[m] || m}
+                        </button>
+                    ))}
+                  </div>
+                </div>
             )}
 
             {/* Size selector */}

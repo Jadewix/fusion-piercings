@@ -59,9 +59,60 @@ const upload = multer({ storage: multer.memoryStorage() });
 // --- PUBLIC ROUTES (For the Storefront) ---
 
 app.get('/api/products', async (req, res) => {
+    // --- Parse & sanitize pagination params ---
+    let page  = parseInt(req.query.page, 10);
+    let limit = parseInt(req.query.limit, 10);
+    if (!Number.isFinite(page)  || page  < 1) page  = 1;
+    if (!Number.isFinite(limit) || limit < 1) limit = 20;
+    if (limit > 100) limit = 100; // safety cap so a client can't request the whole table
+
+    const { metal, category } = req.query;
+
+    // --- Build WHERE clause from optional filters ---
+    const conditions = [];
+    const params = [];
+
+    if (metal && metal !== 'all') {
+        // A product tagged 'both' should surface under either gold or titanium.
+        params.push(metal);
+        conditions.push(`(metal = $${params.length} OR metal = 'both')`);
+    }
+    if (category && category !== 'all') {
+        params.push(category);
+        conditions.push(`category = $${params.length}`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
     try {
-        const result = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
-        res.status(200).json(result.rows);
+        // 1. Total matching rows (for pagination metadata)
+        const countResult = await pool.query(`SELECT COUNT(*) FROM products ${whereClause}`, params);
+        const total = parseInt(countResult.rows[0].count, 10);
+
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        // Clamp the requested page into a valid range
+        if (page > totalPages) page = totalPages;
+        const offset = (page - 1) * limit;
+
+        // 2. Page of rows — newest first (id as a stable tiebreaker for equal timestamps)
+        const dataParams = [...params, limit, offset];
+        const dataResult = await pool.query(
+            `SELECT * FROM products
+             ${whereClause}
+             ORDER BY created_at DESC, id DESC
+             LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+            dataParams
+        );
+
+        res.status(200).json({
+            products: dataResult.rows,
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        });
     } catch (error) {
         console.error("Error fetching products:", error);
         res.status(500).json({ error: 'Failed to fetch products' });

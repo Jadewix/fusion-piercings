@@ -7,7 +7,7 @@ export default function WhatsAppWidget() {
 
   return (
     <a
-      href="https://wa.me/96181030120"
+      href="https://wa.me/96171433119"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"

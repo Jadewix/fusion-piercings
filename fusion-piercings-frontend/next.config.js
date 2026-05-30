@@ -10,13 +10,7 @@ const nextConfig = {
       },
     ],
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // ESLint and TypeScript errors now fail the build, so broken code can't ship.
 };
 
-// Change this line right here:
 module.exports = nextConfig;

@@ -143,6 +143,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                             <select value={metal} onChange={e => setMetal(e.target.value)} className={inputClass}>
                                 <option value="gold">Gold</option>
                                 <option value="titanium">Titanium</option>
+                                <option value="both">Both</option>
                             </select>
                         </div>
                     </div>

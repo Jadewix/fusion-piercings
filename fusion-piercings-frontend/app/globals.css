@@ -42,6 +42,12 @@
     flex-shrink: 0;
   }
 
+  /* Thin scrollbar for compact scroll areas */
+  .scrollbar-thin::-webkit-scrollbar { width: 3px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: theme('colors.border.DEFAULT') transparent; }
+
   /* Metallic image shine overlay */
   .metal-shine::after {
     content: '';

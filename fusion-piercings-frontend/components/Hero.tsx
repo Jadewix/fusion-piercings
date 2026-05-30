@@ -45,13 +45,21 @@ export default function Hero() {
           </p>
         </div>
 
-        {/* CTA */}
-        <a
-          href="#shop"
-          className="inline-flex items-center bg-ink text-bg border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-[#2a2620] hover:-translate-y-px hover:shadow-md transition-all duration-200"
-        >
-          Shop Collection
-        </a>
+        {/* CTAs */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+          <a
+            href="#shop"
+            className="inline-flex items-center justify-center bg-ink text-bg border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-[#2a2620] hover:-translate-y-px hover:shadow-md transition-all duration-200"
+          >
+            Shop Collection
+          </a>
+          <a
+            href="/book"
+            className="inline-flex items-center justify-center bg-transparent text-ink border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-ink hover:text-bg hover:-translate-y-px hover:shadow-md transition-all duration-200"
+          >
+            Book An Appointment
+          </a>
+        </div>
 
         {/* Stats */}
         <div className="flex items-center justify-center divide-x divide-border">

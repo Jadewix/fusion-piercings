@@ -1,20 +1,16 @@
-'use client';
+import Nav from '@/components/Nav';
+import Hero from '@/components/Hero';
+import TrustBar from '@/components/TrustBar';
+import Values from '@/components/Values';
+import Footer from '@/components/Footer';
+import CartDrawer from '@/components/CartDrawer';
+import ShopSection from '@/components/ShopSection';
+import Toast from '@/components/Toast';
 
-import { useState } from 'react';
-import { Product } from '@/lib/types';
-import Nav          from '@/components/Nav';
-import Hero         from '@/components/Hero';
-import TrustBar     from '@/components/TrustBar';
-import Shop         from '@/components/Shop';
-import Values       from '@/components/Values';
-import Footer       from '@/components/Footer';
-import CartDrawer   from '@/components/CartDrawer';
-import ProductModal from '@/components/ProductModal';
-import Toast        from '@/components/Toast';
-
+// Server component: Hero, TrustBar, Values and Footer are now rendered on the
+// server (SSR/SSG). Only the interactive islands (Nav, CartDrawer, ShopSection,
+// Toast) hydrate on the client.
 export default function Home() {
-  const [modalProduct, setModalProduct] = useState<Product | null>(null);
-
   return (
     <>
       <Nav />
@@ -23,18 +19,11 @@ export default function Home() {
       <main>
         <Hero />
         <TrustBar />
-        <Shop onOpenModal={setModalProduct} />
+        <ShopSection />
         <Values />
       </main>
 
       <Footer />
-
-      {modalProduct && (
-        <ProductModal
-          product={modalProduct}
-          onClose={() => setModalProduct(null)}
-        />
-      )}
 
       <Toast />
     </>

@@ -29,7 +29,7 @@ function reducer(state: CartItem[], action: Action): CartItem[] {
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product, size: string | null) => void;
+  addToCart: (product: Product, size: string | null, metalOverride?: string) => void;
   removeFromCart: (cartKey: string) => void;
   updateQty: (cartKey: string, delta: number) => void;
   clearCart: () => void;
@@ -71,8 +71,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToast(''), 2600);
   }, []);
 
-  const addToCart = useCallback((product: Product, size: string | null) => {
-    const cartKey = `${product.id}-${size ?? 'default'}`;
+  const addToCart = useCallback((product: Product, size: string | null, metalOverride?: string) => {
+    // Use the override (for "both" products) or the product's metal
+    const metal = metalOverride || product.metal || 'gold';
+    const cartKey = `${product.id}-${size ?? 'default'}-${metal}`;
 
     // We parse the price to a number safely, just in case Postgres sends a string
     const safePrice = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
@@ -83,7 +85,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         id: product.id,
         cartKey,
         name: product.name,
-        metal: product.metal || 'gold',
+        metal,
         price: safePrice,
         image_url: product.image_url, // Added the real image!
         size,

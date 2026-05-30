@@ -25,13 +25,15 @@ export const METAL_GRADIENT: Record<string, { background: string }> = {
 export const METAL_DOT_GRADIENT: Record<string, string> = {
   gold:       'linear-gradient(135deg,#C8922E,#EDD898)',
   titanium:   'linear-gradient(135deg,#6898B8,#AECADE)',
+  both:       'linear-gradient(135deg, #C8922E 0%, #C8922E 50%, #6898B8 50%, #6898B8 100%)',
   silver:     'linear-gradient(135deg,#909090,#D0D0D0)',
   'rose-gold':'linear-gradient(135deg,#C08878,#E4C8C0)',
 };
 
 export const METAL_LABELS: Record<string, string> = {
-  gold:       '14k Solid Gold',
-  titanium:   'Impl. Titanium',
+  gold:       'Surgical Steel',
+  titanium:   'Titanium',
+  both:       'Gold & Titanium',
   silver:     '925 Silver',
   'rose-gold':'Rose Gold Ti.',
 };

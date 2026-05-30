@@ -267,7 +267,7 @@ export default function CareGuidePage() {
                             Our team is here to help. Reach out anytime for advice or aftercare support.
                         </p>
                         <a
-                            href="https://wa.me/96181030120"
+                            href="https://wa.me/96171433119"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2.5 bg-ink text-bg border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-[#2a2620] hover:-translate-y-px hover:shadow-md transition-all duration-200"

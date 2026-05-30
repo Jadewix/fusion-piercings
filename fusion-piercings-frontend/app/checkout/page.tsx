@@ -24,6 +24,7 @@ export default function CheckoutPage() {
     const [isSuccess, setIsSuccess] = useState(false);
     const [orderId, setOrderId] = useState<number | null>(null);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
     // Formatting helpers
     const formatMetal = (metal?: string) => {
@@ -38,11 +39,38 @@ export default function CheckoutPage() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    // Validation helpers
+    const isValidEmail = (email: string) => {
+        // Must have local@domain.tld format with a real TLD (2+ chars)
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+    };
+
+    const isValidPhone = (phone: string) => {
+        // Strip spaces, dashes, parens — then check for 7-15 digits (optionally starting with +)
+        const digits = phone.replace(/[\s\-().]/g, '');
+        return /^\+?\d{7,15}$/.test(digits);
+    };
+
     // --- UPDATED SUBMIT FUNCTION ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
+        setFieldErrors({});
         setError('');
+
+        // Validate email & phone before submitting
+        const errors: { email?: string; phone?: string } = {};
+        if (!isValidEmail(formData.email)) {
+            errors.email = 'Please enter a valid email address';
+        }
+        if (!isValidPhone(formData.phone)) {
+            errors.phone = 'Please enter a valid phone number';
+        }
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
+            return;
+        }
+
+        setIsSubmitting(true);
 
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/orders`, {
@@ -122,11 +150,26 @@ export default function CheckoutPage() {
                             <input required name="lastName" value={formData.lastName} onChange={handleChange}
                                    placeholder="Last Name" className={inputClass}/>
                         </div>
-                        <input required name="email" type="email" value={formData.email} onChange={handleChange}
-                               placeholder="Email Address (For your receipt)" className={`${inputClass} mb-4`}/>
+                        <div className="mb-4">
+                            <input required name="email" type="email" value={formData.email}
+                                   onChange={e => { handleChange(e); if (fieldErrors.email) setFieldErrors(f => ({ ...f, email: undefined })); }}
+                                   placeholder="Email Address (For your receipt)"
+                                   className={`${inputClass} ${fieldErrors.email ? 'border-red-400 focus:border-red-500' : ''}`}/>
+                            {fieldErrors.email && <p className="text-red-500 text-[0.72rem] mt-1.5">{fieldErrors.email}</p>}
+                        </div>
 
-                        <input required name="phone" type="tel" value={formData.phone} onChange={handleChange}
-                               placeholder="Phone Number (e.g., 70 123 456)" className={`${inputClass} mb-4`}/>
+                        <div className="mb-4">
+                            <input required name="phone" type="tel" value={formData.phone}
+                                   onChange={e => {
+                                       // Only allow digits, spaces, dashes, parens, and leading +
+                                       const val = e.target.value.replace(/[^\d\s\-()+]/g, '');
+                                       setFormData(f => ({ ...f, phone: val }));
+                                       if (fieldErrors.phone) setFieldErrors(f => ({ ...f, phone: undefined }));
+                                   }}
+                                   placeholder="Phone Number (e.g., +961 70 123 456)"
+                                   className={`${inputClass} ${fieldErrors.phone ? 'border-red-400 focus:border-red-500' : ''}`}/>
+                            {fieldErrors.phone && <p className="text-red-500 text-[0.72rem] mt-1.5">{fieldErrors.phone}</p>}
+                        </div>
                         <input required name="city" value={formData.city} onChange={handleChange}
                                placeholder="City / Region" className={`${inputClass} mb-4`}/>
                         <input required name="address" value={formData.address} onChange={handleChange}

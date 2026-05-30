@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 
 const NAV_LINKS = [
-  { label: 'Home',       href: '/#home'     },
-  { label: 'Shop',       href: '/#shop'     },
-  { label: 'Care Guide', href: '/care-guide' },
+  { label: 'Home',             href: '/#home'      },
+  { label: 'Shop',             href: '/#shop'      },
+  { label: 'Care Guide',       href: '/care-guide'  },
+  { label: 'Book Appointment', href: '/book'        },
 ];
 
 export default function Nav() {
