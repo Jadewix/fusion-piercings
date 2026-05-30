@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Playfair_Display, Montserrat } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
+import { GoogleAnalytics } from '@next/third-parties/google'; // 👈 1. Added Import
 import './globals.css';
 
 const inter = Inter({
@@ -40,11 +41,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable} ${montserrat.variable}`}>
+      <html lang="en" className={`${inter.variable} ${playfair.variable} ${montserrat.variable}`}>
       <body>
-        <CartProvider>{children}</CartProvider>
-        <WhatsAppWidget />
+      <CartProvider>{children}</CartProvider>
+      <WhatsAppWidget />
+      <GoogleAnalytics gaId="G-PC94DZ6KFN" /> {/* 👈 2. Added Google Analytics Tag */}
       </body>
-    </html>
+      </html>
   );
 }
