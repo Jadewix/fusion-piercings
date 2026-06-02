@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import CollectionClient from './CollectionClient';
@@ -29,10 +30,14 @@ export default function CollectionPage({ params }: Props) {
   const collection = COLLECTIONS[params.slug];
   if (!collection) notFound();
   return (
-    <CollectionClient
-      title={collection.title}
-      materialTag={collection.materialTag}
-      showSubcategoryTabs={collection.showSubcategoryTabs}
-    />
+    // useSearchParams() inside CollectionClient requires a Suspense boundary
+    // for Next 14's static prerender to succeed.
+    <Suspense fallback={null}>
+      <CollectionClient
+        title={collection.title}
+        materialTag={collection.materialTag}
+        showSubcategoryTabs={collection.showSubcategoryTabs}
+      />
+    </Suspense>
   );
 }
