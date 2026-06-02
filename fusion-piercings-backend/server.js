@@ -66,7 +66,7 @@ app.get('/api/products', async (req, res) => {
     if (!Number.isFinite(limit) || limit < 1) limit = 20;
     if (limit > 100) limit = 100; // safety cap so a client can't request the whole table
 
-    const { metal, category } = req.query;
+    const { metal, category, material_tag } = req.query;
 
     // --- Build WHERE clause from optional filters ---
     const conditions = [];
@@ -80,6 +80,10 @@ app.get('/api/products', async (req, res) => {
     if (category && category !== 'all') {
         params.push(category);
         conditions.push(`category = $${params.length}`);
+    }
+    if (material_tag) {
+        params.push(material_tag);
+        conditions.push(`$${params.length} = ANY(material_tags)`);
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -133,30 +137,53 @@ app.get('/api/products/:id', async (req, res) => {
 
 // --- ADMIN ROUTES (For the Owner's Dashboard) ---
 
-app.post('/api/products', upload.single('image'), async (req, res) => {
-    const { name, description, price, category, metal, sizes } = req.body;
-    const file = req.file;
+// Normalise an incoming sizes payload to [{size, in_stock}] regardless of the
+// legacy shape the client sent (JSON array of objects, JSON array of strings,
+// or a comma-separated fallback).
+function normaliseSizes(raw) {
+    if (!raw) return [{ size: 'One Size', in_stock: true }];
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch { parsed = String(raw).split(',').map(s => s.trim()).filter(Boolean); }
+    if (!Array.isArray(parsed) || parsed.length === 0) return [{ size: 'One Size', in_stock: true }];
+    return parsed.map(s =>
+        typeof s === 'string'
+            ? { size: s, in_stock: true }
+            : { size: String(s.size), in_stock: s.in_stock !== false }
+    );
+}
 
-    if (!file) return res.status(400).json({ error: "Image file is required" });
+// Upload one in-memory file to Supabase and return its public URL.
+async function uploadOne(file) {
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.originalname.replace(/\s+/g, '-')}`;
+    const { error: uploadError } = await supabase.storage.from('jewelry-images').upload(fileName, file.buffer, { contentType: file.mimetype });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from('jewelry-images').getPublicUrl(fileName);
+    return data.publicUrl;
+}
 
-    let parsedSizes = ['One Size'];
-    if (sizes) {
-        try { parsedSizes = JSON.parse(sizes); }
-        catch { parsedSizes = sizes.split(',').map(s => s.trim()); }
+app.post('/api/products', upload.array('images', 10), async (req, res) => {
+    const { name, description, price, category, metal, sizes, material_tags } = req.body;
+    const files = req.files || [];
+
+    if (files.length === 0) return res.status(400).json({ error: "At least one image is required" });
+
+    const parsedSizes = normaliseSizes(sizes);
+
+    let parsedMaterialTags = [];
+    if (material_tags) {
+        try { parsedMaterialTags = JSON.parse(material_tags); }
+        catch { parsedMaterialTags = []; }
     }
 
     try {
-        const fileName = `${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
-        const { data, error: uploadError } = await supabase.storage.from('jewelry-images').upload(fileName, file.buffer, { contentType: file.mimetype });
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage.from('jewelry-images').getPublicUrl(fileName);
-        const imageUrl = publicUrlData.publicUrl;
+        const urls = [];
+        for (const f of files) urls.push(await uploadOne(f));
 
         const result = await pool.query(
-            `INSERT INTO products (name, description, price, image_url, category, metal, sizes, stock_count)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 999) RETURNING *`,
-            [name, description, price, imageUrl, category || 'ear', metal || 'gold', parsedSizes]
+            `INSERT INTO products (name, description, price, image_url, image_urls, category, metal, sizes, stock_count, material_tags)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 999, $9) RETURNING *`,
+            [name, description, price, urls[0], urls, category || 'ear', metal || 'gold', JSON.stringify(parsedSizes), parsedMaterialTags]
         );
 
         res.status(201).json({ message: "Product created!", product: result.rows[0] });
@@ -184,33 +211,50 @@ app.patch('/api/products/:id/stock', async (req, res) => {
     }
 });
 
-app.put('/api/products/:id', upload.single('image'), async (req, res) => {
+app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
     const { id } = req.params;
-    const { name, description, price, category, metal, sizes } = req.body;
-    const file = req.file;
+    const { name, description, price, category, metal, sizes, material_tags, existing_image_urls } = req.body;
+    const files = req.files || [];
 
-    let parsedSizes = null;
-    if (sizes) {
-        try { parsedSizes = JSON.parse(sizes); }
-        catch { parsedSizes = sizes.split(',').map(s => s.trim()); }
+    const parsedSizes = sizes !== undefined ? JSON.stringify(normaliseSizes(sizes)) : null;
+
+    let parsedMaterialTags = null;
+    if (material_tags) {
+        try { parsedMaterialTags = JSON.parse(material_tags); }
+        catch { parsedMaterialTags = null; }
+    }
+
+    // existing_image_urls is the set of previously-uploaded URLs the admin chose to keep.
+    // When provided, we treat the new image_urls as: kept-existing ++ newly-uploaded.
+    let keptExisting = null;
+    if (existing_image_urls) {
+        try {
+            const parsed = JSON.parse(existing_image_urls);
+            if (Array.isArray(parsed)) keptExisting = parsed.filter(u => typeof u === 'string');
+        } catch { keptExisting = null; }
     }
 
     try {
-        let imageUrl = null;
-        if (file) {
-            const fileName = `${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
-            const { data, error: uploadError } = await supabase.storage.from('jewelry-images').upload(fileName, file.buffer, { contentType: file.mimetype });
-            if (uploadError) throw uploadError;
-            const { data: publicUrlData } = supabase.storage.from('jewelry-images').getPublicUrl(fileName);
-            imageUrl = publicUrlData.publicUrl;
+        const uploadedUrls = [];
+        for (const f of files) uploadedUrls.push(await uploadOne(f));
+
+        // Build the new image_urls array (only if the admin actually managed images this request)
+        let newImageUrls = null;
+        if (keptExisting !== null || uploadedUrls.length > 0) {
+            newImageUrls = [...(keptExisting || []), ...uploadedUrls];
         }
+        const newPrimaryUrl = newImageUrls && newImageUrls.length > 0 ? newImageUrls[0] : null;
 
         const result = await pool.query(
-            `UPDATE products 
+            `UPDATE products
              SET name = COALESCE($1, name), description = COALESCE($2, description), price = COALESCE($3, price),
-                 category = COALESCE($4, category), metal = COALESCE($5, metal), sizes = COALESCE($6, sizes), image_url = COALESCE($7, image_url)
-             WHERE id = $8 RETURNING *`,
-            [name, description, price, category, metal, parsedSizes, imageUrl, id]
+                 category = COALESCE($4, category), metal = COALESCE($5, metal),
+                 sizes = COALESCE($6::jsonb, sizes),
+                 image_url = COALESCE($7, image_url),
+                 image_urls = COALESCE($8, image_urls),
+                 material_tags = COALESCE($9, material_tags)
+             WHERE id = $10 RETURNING *`,
+            [name, description, price, category, metal, parsedSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags, id]
         );
 
         if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
@@ -224,12 +268,13 @@ app.put('/api/products/:id', upload.single('image'), async (req, res) => {
 app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const productResult = await pool.query('SELECT image_url FROM products WHERE id = $1', [id]);
+        const productResult = await pool.query('SELECT image_url, image_urls FROM products WHERE id = $1', [id]);
         if (productResult.rows.length === 0) return res.status(404).json({ error: "Product not found" });
 
-        const imageUrl = productResult.rows[0].image_url;
-        const fileName = imageUrl.split('/').pop();
-        await supabase.storage.from('jewelry-images').remove([fileName]);
+        const { image_url, image_urls } = productResult.rows[0];
+        const allUrls = (image_urls && image_urls.length > 0) ? image_urls : (image_url ? [image_url] : []);
+        const fileNames = allUrls.map(u => u.split('/').pop()).filter(Boolean);
+        if (fileNames.length > 0) await supabase.storage.from('jewelry-images').remove(fileNames);
         await pool.query('DELETE FROM products WHERE id = $1', [id]);
 
         res.status(200).json({ message: "Product and image deleted successfully" });
@@ -468,16 +513,89 @@ async function initDB() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `);
-    // Backfill any products that were inserted before stock_count was required.
-    // Sets them to 999 (in stock) so they appear on the storefront.
+    // Create products table if it doesn't exist yet (works for fresh DBs)
     await pool.query(`
-        UPDATE products SET stock_count = 999 WHERE stock_count IS NULL
+        CREATE TABLE IF NOT EXISTS products (
+            id            SERIAL PRIMARY KEY,
+            name          VARCHAR NOT NULL,
+            description   TEXT,
+            price         NUMERIC(10,2) NOT NULL,
+            image_url     TEXT,
+            image_urls    TEXT[] DEFAULT '{}',
+            category      VARCHAR DEFAULT 'ear',
+            metal         VARCHAR DEFAULT 'gold',
+            sizes         JSONB  DEFAULT '[]'::jsonb,
+            stock_count   INTEGER DEFAULT 999,
+            material_tags TEXT[] DEFAULT '{}',
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
     `);
-    // Add status column to orders if it doesn't exist yet (safe for existing tables)
+    // Defensive: make sure every column the CRUD endpoints reference actually exists,
+    // even for products tables created by hand with a slimmer schema.
+    const ensureColumn = async (col, type) => {
+        await pool.query(`
+            DO $$ BEGIN
+                ALTER TABLE products ADD COLUMN ${col} ${type};
+            EXCEPTION WHEN duplicate_column THEN NULL;
+            END $$
+        `);
+    };
+    await ensureColumn('description',   "TEXT");
+    await ensureColumn('image_url',     "TEXT");
+    await ensureColumn('image_urls',    "TEXT[] DEFAULT '{}'");
+    await ensureColumn('category',      "VARCHAR DEFAULT 'ear'");
+    await ensureColumn('metal',         "VARCHAR DEFAULT 'gold'");
+    await ensureColumn('sizes',         "TEXT[] DEFAULT '{}'");
+    await ensureColumn('stock_count',   "INTEGER DEFAULT 999");
+    await ensureColumn('material_tags', "TEXT[] DEFAULT '{}'");
+    // Backfill any products that were inserted before stock_count was required.
+    await pool.query(`UPDATE products SET stock_count = 999 WHERE stock_count IS NULL`);
+    // Add status column to orders if it doesn't exist yet
     await pool.query(`
         DO $$ BEGIN
             ALTER TABLE orders ADD COLUMN status VARCHAR DEFAULT 'pending';
         EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$
+    `);
+    // If a legacy 'old_image_url' column exists (the original name before a rename), copy its
+    // values into image_url so the rest of the migration / app can find them.
+    await pool.query(`
+        DO $$ BEGIN
+            UPDATE products SET image_url = old_image_url
+            WHERE image_url IS NULL AND old_image_url IS NOT NULL;
+        EXCEPTION WHEN undefined_column THEN NULL;
+        END $$
+    `);
+    // Backfill image_urls from image_url for any rows uploaded before the gallery existed
+    await pool.query(`
+        UPDATE products
+        SET image_urls = ARRAY[image_url]
+        WHERE (image_urls IS NULL OR cardinality(image_urls) = 0)
+          AND image_url IS NOT NULL
+    `);
+    // Convert sizes from TEXT[] to JSONB [{size, in_stock}] so each size has its own stock flag.
+    // Postgres forbids subqueries in ALTER ... USING, so we do it via a temp column:
+    //   add sizes_new -> backfill from old TEXT[] -> drop old -> rename. Idempotent.
+    await pool.query(`
+        DO $$
+        DECLARE
+            current_type TEXT;
+        BEGIN
+            SELECT data_type INTO current_type
+            FROM information_schema.columns
+            WHERE table_name = 'products' AND column_name = 'sizes';
+
+            IF current_type = 'ARRAY' THEN
+                ALTER TABLE products DROP COLUMN IF EXISTS sizes_new;
+                ALTER TABLE products ADD COLUMN sizes_new JSONB DEFAULT '[]'::jsonb;
+                UPDATE products SET sizes_new = COALESCE(
+                    (SELECT jsonb_agg(jsonb_build_object('size', s, 'in_stock', true))
+                     FROM unnest(sizes) AS s),
+                    '[]'::jsonb
+                );
+                ALTER TABLE products DROP COLUMN sizes;
+                ALTER TABLE products RENAME COLUMN sizes_new TO sizes;
+            END IF;
         END $$
     `);
     console.log('Database ready');

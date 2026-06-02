@@ -1,27 +1,7 @@
-'use client';
-
-import { useState } from 'react';
-import { Product } from '@/lib/types';
 import Shop from '@/components/Shop';
-import ProductModal from '@/components/ProductModal';
 
-/**
- * Client island that wires the product grid to the product detail modal.
- * Kept separate so the home page itself can remain a server component.
- */
+// Thin wrapper around <Shop /> so the home page can stay a server component
+// while the shop grid stays a client island.
 export default function ShopSection() {
-  const [modalProduct, setModalProduct] = useState<Product | null>(null);
-
-  return (
-    <>
-      <Shop onOpenModal={setModalProduct} />
-
-      {modalProduct && (
-        <ProductModal
-          product={modalProduct}
-          onClose={() => setModalProduct(null)}
-        />
-      )}
-    </>
-  );
+  return <Shop />;
 }

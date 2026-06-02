@@ -1,40 +1,104 @@
 // components/AdminProductModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Product } from '@/lib/types';
+import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
+import { Product, ProductSize } from '@/lib/types';
 
 interface Props {
     product?: Product | null; // If null, we are ADDING. If it has data, we are EDITING.
     onClose: () => void;
-    onSave: () => void; // A function to tell the dashboard to refresh the data
+    onSave: () => void;
+}
+
+// Legacy rows may still have sizes as string[]; coerce so the editor always works in ProductSize[].
+function coerceSizes(raw: unknown): ProductSize[] {
+    if (!Array.isArray(raw) || raw.length === 0) return [{ size: 'One Size', in_stock: true }];
+    return raw.map((s: any) =>
+        typeof s === 'string' ? { size: s, in_stock: true } : { size: String(s.size), in_stock: s.in_stock !== false }
+    );
+}
+
+interface PendingFile {
+    file: File;
+    previewUrl: string; // object URL — revoked on unmount
 }
 
 export default function AdminProductModal({ product, onClose, onSave }: Props) {
     const isEditing = !!product;
 
-    // Form State
-    const [name, setName] = useState(product?.name || '');
-    const [price, setPrice] = useState(product?.price || '');
+    const [name, setName]               = useState(product?.name || '');
+    const [price, setPrice]             = useState(product?.price?.toString() || '');
     const [description, setDescription] = useState(product?.description || '');
-    const [category, setCategory] = useState(product?.category || 'ear');
-    const [metal, setMetal] = useState(product?.metal || 'gold');
+    const [category, setCategory]       = useState(product?.category || 'ear');
+    const [metal, setMetal]             = useState(product?.metal || 'gold');
 
-    // Convert the array of sizes to a comma-separated string for easy editing
-    const [sizes, setSizes] = useState(product?.sizes?.join(', ') || 'One Size');
-    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [sizes, setSizes] = useState<ProductSize[]>(coerceSizes(product?.sizes));
+    const [newSizeLabel, setNewSizeLabel] = useState('');
 
-    // Stock availability — true = In Stock, false = Out of Stock
-    const [inStock, setInStock] = useState(product ? product.stock_count !== 0 : true);
+    // Image state: existing URLs the admin wants to keep, plus newly-picked files.
+    const initialExisting = useMemo(() => {
+        if (!product) return [];
+        if (product.image_urls && product.image_urls.length > 0) return product.image_urls;
+        return product.image_url ? [product.image_url] : [];
+    }, [product]);
+    const [existingUrls, setExistingUrls] = useState<string[]>(initialExisting);
+    const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+
+    const [materialTags, setMaterialTags] = useState<string[]>(product?.material_tags || []);
 
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError]     = useState('');
 
-    // Lock body scroll when open
+    // Lock body scroll
     useEffect(() => {
         document.body.style.overflow = 'hidden';
         return () => { document.body.style.overflow = ''; };
     }, []);
+
+    // Revoke object URLs when component unmounts so we don't leak memory
+    useEffect(() => () => {
+        pendingFiles.forEach(p => URL.revokeObjectURL(p.previewUrl));
+    }, [pendingFiles]);
+
+    function addPendingFiles(files: FileList | null) {
+        if (!files || files.length === 0) return;
+        const next: PendingFile[] = Array.from(files).map(file => ({
+            file,
+            previewUrl: URL.createObjectURL(file),
+        }));
+        setPendingFiles(prev => [...prev, ...next]);
+    }
+
+    function removeExisting(url: string) {
+        setExistingUrls(prev => prev.filter(u => u !== url));
+    }
+
+    function removePending(idx: number) {
+        setPendingFiles(prev => {
+            URL.revokeObjectURL(prev[idx].previewUrl);
+            return prev.filter((_, i) => i !== idx);
+        });
+    }
+
+    function addSizeRow() {
+        const label = newSizeLabel.trim();
+        if (!label) return;
+        if (sizes.some(s => s.size.toLowerCase() === label.toLowerCase())) {
+            setNewSizeLabel('');
+            return;
+        }
+        setSizes(prev => [...prev, { size: label, in_stock: true }]);
+        setNewSizeLabel('');
+    }
+
+    function removeSizeRow(size: string) {
+        setSizes(prev => prev.filter(s => s.size !== size));
+    }
+
+    function toggleSizeStock(size: string) {
+        setSizes(prev => prev.map(s => s.size === size ? { ...s, in_stock: !s.in_stock } : s));
+    }
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -42,49 +106,46 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         setError('');
 
         try {
+            if (sizes.length === 0) throw new Error('Please add at least one size.');
+            const totalImages = existingUrls.length + pendingFiles.length;
+            if (totalImages === 0) throw new Error('Please upload at least one image.');
+
             const formData = new FormData();
             formData.append('name', name);
-            formData.append('price', price.toString());
+            formData.append('price', price);
             formData.append('description', description);
             formData.append('category', category);
             formData.append('metal', metal);
-            formData.append('sizes', sizes);
+            formData.append('sizes', JSON.stringify(sizes));
+            formData.append('material_tags', JSON.stringify(materialTags));
 
-            // Only append the image if they actually uploaded a new one
-            if (imageFile) {
-                formData.append('image', imageFile);
-            } else if (!isEditing) {
-                throw new Error('Please upload an image for the new product.');
-            }
+            // When editing, tell the backend which existing image URLs to keep
+            if (isEditing) formData.append('existing_image_urls', JSON.stringify(existingUrls));
+
+            for (const p of pendingFiles) formData.append('images', p.file);
 
             const url = isEditing
                 ? `${process.env.NEXT_PUBLIC_API_URL}/products/${product.id}`
                 : `${process.env.NEXT_PUBLIC_API_URL}/products`;
 
-            const method = isEditing ? 'PUT' : 'POST';
-
             const res = await fetch(url, {
-                method,
+                method: isEditing ? 'PUT' : 'POST',
                 body: formData,
             });
-
             if (!res.ok) throw new Error('Failed to save product');
 
-            const saved = await res.json();
-            const productId = isEditing ? product.id : saved.product.id;
+            // Mirror "fully out of stock" into stock_count so the storefront's product card
+            // and inventory split keep working.
+            const productId = isEditing ? product.id : (await res.clone().json()).product.id;
+            const allOOS = sizes.every(s => !s.in_stock);
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: allOOS ? 'out_of_stock' : 'in_stock' }),
+            });
 
-            // Sync stock: always when editing; for new products only if marked out-of-stock
-            // (new products default to stock_count=999 in the DB, so skip the PATCH if in-stock)
-            if (isEditing || !inStock) {
-                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: inStock ? 'in_stock' : 'out_of_stock' }),
-                });
-            }
-
-            onSave(); // Tell the dashboard to refresh
-            onClose(); // Close the modal
+            onSave();
+            onClose();
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -92,14 +153,12 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         }
     }
 
-    // Common input styling class
     const inputClass = "w-full bg-transparent border border-border-lt rounded-sm px-4 py-2.5 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors mb-4";
 
     return (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-ink/50 backdrop-blur-[10px] animate-fade-in">
-            <div className="relative w-full max-w-[500px] bg-bg-card rounded-[20px] overflow-hidden shadow-xl animate-modal-enter">
+            <div className="relative w-full max-w-[560px] bg-bg-card rounded-[20px] overflow-hidden shadow-xl animate-modal-enter">
 
-                {/* Header */}
                 <div className="px-7 pt-6 pb-4 border-b border-border-lt flex justify-between items-center bg-bg">
                     <h2 className="font-serif text-[1.5rem] font-semibold text-ink leading-tight">
                         {isEditing ? 'Edit Product' : 'Add New Product'}
@@ -111,7 +170,6 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                     </button>
                 </div>
 
-                {/* Form Body */}
                 <form onSubmit={handleSubmit} className="px-7 py-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
@@ -136,6 +194,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                 <option value="ear">Ear</option>
                                 <option value="nose">Nose</option>
                                 <option value="belly">Belly</option>
+                                <option value="nipple">Nipple</option>
                             </select>
                         </div>
                         <div>
@@ -148,51 +207,142 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                         </div>
                     </div>
 
-                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Sizes (Comma separated)</label>
-                    <input required value={sizes} onChange={e => setSizes(e.target.value)} className={inputClass} placeholder="6mm, 8mm, 10mm" />
+                    {/* Sizes — each row has a label + in-stock toggle */}
+                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Sizes & Stock</label>
+                    <div className="border border-border-lt rounded-sm mb-4 overflow-hidden">
+                        {sizes.length === 0 && (
+                            <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">No sizes added yet.</div>
+                        )}
+                        {sizes.map(({ size, in_stock }, i) => (
+                            <div
+                                key={size}
+                                className={`flex items-center gap-3 px-3 py-2.5 ${i > 0 ? 'border-t border-border-lt' : ''}`}
+                            >
+                                <span className="flex-grow text-[0.85rem] text-ink font-medium">{size}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleSizeStock(size)}
+                                    className={`px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all ${
+                                        in_stock
+                                            ? 'border-green-200 text-green-600 bg-green-50 hover:bg-red-50 hover:border-red-200 hover:text-red-500'
+                                            : 'border-red-200 text-red-500 bg-red-50 hover:bg-green-50 hover:border-green-200 hover:text-green-600'
+                                    }`}
+                                >
+                                    {in_stock ? 'In Stock' : 'Out of Stock'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => removeSizeRow(size)}
+                                    aria-label={`Remove ${size}`}
+                                    className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2 mb-5">
+                        <input
+                            value={newSizeLabel}
+                            onChange={e => setNewSizeLabel(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSizeRow(); } }}
+                            placeholder="Add size (e.g. 8mm)"
+                            className="flex-grow bg-transparent border border-border-lt rounded-sm px-4 py-2 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors"
+                        />
+                        <button
+                            type="button"
+                            onClick={addSizeRow}
+                            className="px-4 py-2 text-[0.7rem] font-semibold tracking-[0.12em] uppercase border border-ink text-ink rounded-sm hover:bg-ink hover:text-bg transition-all"
+                        >
+                            Add
+                        </button>
+                    </div>
 
-                    {/* Image Upload */}
-                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Product Image</label>
+                    {/* Material tags */}
+                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Material Collections</label>
+                    <div className="flex flex-col gap-2 mb-5">
+                        {[
+                            { value: 'titanium',          label: 'Titanium'          },
+                            { value: 'surgical-steel',    label: 'Surgical Steel'    },
+                            { value: 'gold-plated-hoops', label: 'Gold Plated Hoops' },
+                        ].map(tag => {
+                            const checked = materialTags.includes(tag.value);
+                            return (
+                                <label
+                                    key={tag.value}
+                                    className={`flex items-center gap-3 px-4 py-2.5 rounded-sm border cursor-pointer transition-all ${
+                                        checked
+                                            ? 'border-ink bg-ink/5 text-ink'
+                                            : 'border-border-lt text-ink-2 hover:border-border hover:text-ink'
+                                    }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        className="accent-ink w-3.5 h-3.5"
+                                        checked={checked}
+                                        onChange={() =>
+                                            setMaterialTags(prev =>
+                                                checked ? prev.filter(t => t !== tag.value) : [...prev, tag.value]
+                                            )
+                                        }
+                                    />
+                                    <span className="text-[0.78rem] font-medium">{tag.label}</span>
+                                </label>
+                            );
+                        })}
+                    </div>
+
+                    {/* Images — gallery with remove buttons + add-more file picker */}
+                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Product Images</label>
+                    <p className="text-[0.7rem] text-ink-3 mb-3">First image is the main thumbnail shown on cards and the cart.</p>
+                    {(existingUrls.length > 0 || pendingFiles.length > 0) && (
+                        <div className="grid grid-cols-4 gap-2 mb-3">
+                            {existingUrls.map(url => (
+                                <div key={url} className="relative aspect-square border border-border-lt rounded-sm overflow-hidden group">
+                                    <Image src={url} alt="" fill className="object-cover" sizes="120px" />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeExisting(url)}
+                                        aria-label="Remove image"
+                                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/95 text-ink-2 hover:text-red-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                            {pendingFiles.map((p, idx) => (
+                                <div key={p.previewUrl} className="relative aspect-square border border-dashed border-ink rounded-sm overflow-hidden group">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={p.previewUrl} alt="" className="w-full h-full object-cover" />
+                                    <span className="absolute bottom-1 left-1 text-[0.55rem] font-semibold tracking-wider uppercase bg-ink text-bg px-1.5 py-0.5 rounded-full">
+                                        new
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => removePending(idx)}
+                                        aria-label="Remove image"
+                                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/95 text-ink-2 hover:text-red-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     <input
                         type="file"
                         accept="image/*"
-                        onChange={e => setImageFile(e.target.files?.[0] || null)}
+                        multiple
+                        onChange={e => { addPendingFiles(e.target.files); e.target.value = ''; }}
                         className="w-full text-sm text-ink-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[0.7rem] file:font-semibold file:uppercase file:tracking-wider file:bg-ink file:text-bg hover:file:bg-[#2a2620] transition-all cursor-pointer"
-                        required={!isEditing}
                     />
 
-                    {/* Availability toggle */}
-                    <div className="mt-6 mb-2">
-                            <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">
-                                Availability
-                            </label>
-                            <div className="flex rounded-sm border border-border-lt overflow-hidden">
-                                <button
-                                    type="button"
-                                    onClick={() => setInStock(true)}
-                                    className={`flex-1 py-2.5 text-[0.72rem] font-semibold tracking-[0.1em] uppercase transition-all ${
-                                        inStock
-                                            ? 'bg-green-600 text-white'
-                                            : 'bg-transparent text-ink-2 hover:text-ink'
-                                    }`}
-                                >
-                                    In Stock
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setInStock(false)}
-                                    className={`flex-1 py-2.5 text-[0.72rem] font-semibold tracking-[0.1em] uppercase border-l border-border-lt transition-all ${
-                                        !inStock
-                                            ? 'bg-red-500 text-white'
-                                            : 'bg-transparent text-ink-2 hover:text-ink'
-                                    }`}
-                                >
-                                    Out of Stock
-                                </button>
-                            </div>
-                    </div>
-
-                    {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={loading}

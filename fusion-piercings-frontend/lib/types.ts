@@ -1,18 +1,25 @@
 // lib/types.ts
 
+export interface ProductSize {
+  size: string;
+  in_stock: boolean;
+}
+
 export interface Product {
   id: number;
   name: string;
   description?: string;
   price: number | string; // Postgres often sends decimals as strings
-  image_url?: string;     // The real picture from Supabase!
+  image_url?: string;     // Primary thumbnail (also image_urls[0])
+  image_urls?: string[];  // Full gallery, ordered
   stock_count?: number;
 
   // Optional UI fields (fallback until added to your DB)
   category?: string;
   metal?: string;
-  sizes?: string[];
-  symbol?: string;        // <-- Add this line right here!
+  sizes?: ProductSize[];
+  symbol?: string;
+  material_tags?: string[]; // e.g. ['titanium', 'surgical-steel', 'gold-plated-hoops']
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';

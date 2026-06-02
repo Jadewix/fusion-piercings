@@ -6,7 +6,7 @@ import { METAL_DOT_GRADIENT } from '@/lib/products';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import ProductCard from './ProductCard';
 
-const PLACEMENTS = ['all', 'ear', 'nose', 'belly'];
+const PLACEMENTS = ['all', 'ear', 'nose', 'belly', 'nipple'];
 const PAGE_SIZE = 20;
 
 const METALS = [
@@ -21,7 +21,7 @@ const METALS = [
   },
   {
     key:         'gold',
-    label:       'Gold Plated Surgical Steel',
+    label:       'Surgical Steel',
     description: 'Gold plated · Hypoallergenic',
     activeBg:    '#FBF7EF',
     activeBorder:'#C8922E',
@@ -48,7 +48,12 @@ interface PageMeta {
 }
 
 interface Props {
-  onOpenModal: (product: Product) => void;
+  materialTag?: string;       // pre-filters by material collection and hides metal/placement controls
+  category?: string;          // controlled category when used with a parent-managed sub-filter (e.g. collection pages)
+  id?: string;                // section id (defaults to 'shop')
+  title?: string;             // override the section heading
+  eyebrow?: string;           // override the small label above the heading
+  hideHeader?: boolean;       // skip the built-in header entirely (when the parent provides its own)
 }
 
 /* Build a compact page list with ellipses, e.g. 1 … 4 5 6 … 12 */
@@ -78,9 +83,18 @@ function SkeletonCard() {
   );
 }
 
-export default function Shop({ onOpenModal }: Props) {
+export default function Shop({
+  materialTag,
+  category: controlledCategory,
+  id = 'shop',
+  title = 'Shop the Collection',
+  eyebrow = 'The Collection',
+  hideHeader = false,
+}: Props) {
   const [activeMetal, setActiveMetal]       = useState<string>('all');
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [internalCategory, setInternalCategory] = useState<string>('all');
+  const activeCategory = controlledCategory ?? internalCategory;
+  const setActiveCategory = (c: string) => setInternalCategory(c);
   const [page, setPage]                     = useState(1);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -103,9 +117,10 @@ export default function Shop({ onOpenModal }: Props) {
         const params = new URLSearchParams({
           page:     String(page),
           limit:    String(PAGE_SIZE),
-          metal:    activeMetal,
-          category: activeCategory,
+          metal:    materialTag ? 'all' : activeMetal,
+          category: materialTag ? activeCategory : activeCategory,
         });
+        if (materialTag) params.append('material_tag', materialTag);
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products?${params}`, {
           signal: controller.signal,
         });
@@ -138,6 +153,11 @@ export default function Shop({ onOpenModal }: Props) {
     return () => controller.abort();
   }, [activeMetal, activeCategory, page, reloadKey]);
 
+  // Parent-controlled category changes (e.g. collection sub-tabs) must reset pagination
+  useEffect(() => {
+    if (controlledCategory !== undefined) setPage(1);
+  }, [controlledCategory]);
+
   // Switching metal resets placement + page so the grid is never empty on first click
   const handleMetalChange = (metal: string) => {
     setActiveMetal(metal);
@@ -159,21 +179,23 @@ export default function Shop({ onOpenModal }: Props) {
   const isInitialLoad = loading && products.length === 0;
 
   return (
-    <section id="shop" ref={sectionRef} className="py-24 bg-bg scroll-mt-24">
+    <section id={id} ref={sectionRef} className="py-24 bg-bg scroll-mt-24">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-8">
 
         {/* ── Section header ─────────────────────────────────────────── */}
-        <div className="mb-12">
-          <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-3 section-label-line">
-            The Collection
-          </span>
-          <h2 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] font-semibold text-ink">
-            Shop the Collection
-          </h2>
-        </div>
+        {!hideHeader && (
+          <div className="mb-12">
+            <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-3 section-label-line">
+              {eyebrow}
+            </span>
+            <h2 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] font-semibold text-ink">
+              {title}
+            </h2>
+          </div>
+        )}
 
-        {/* ── Step 1: Metal selector ──────────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-3 mb-8 w-full max-w-2xl">
+        {/* ── Step 1: Metal selector (hidden on collection pages) ─────── */}
+        <div className={`grid grid-cols-3 gap-3 mb-8 w-full max-w-2xl ${materialTag ? 'hidden' : ''}`}>
           {METALS.map(metal => {
             const isActive = activeMetal === metal.key;
             const orbBg    = metal.orb ?? (METAL_DOT_GRADIENT as any)[metal.key];
@@ -208,9 +230,9 @@ export default function Shop({ onOpenModal }: Props) {
           })}
         </div>
 
-        {/* ── Step 2: Placement sub-filter ───────────────────────────── */}
+        {/* ── Step 2: Placement sub-filter (hidden on collection pages) ─ */}
         <div
-          className="flex flex-wrap items-center gap-2 mb-12"
+          className={`flex flex-wrap items-center gap-2 mb-12 ${materialTag ? 'hidden' : ''}`}
           role="group"
           aria-label="Filter by placement"
         >
@@ -270,7 +292,6 @@ export default function Shop({ onOpenModal }: Props) {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  onOpenModal={onOpenModal}
                 />
               ))}
             </div>
