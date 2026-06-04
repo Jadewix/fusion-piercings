@@ -3,40 +3,70 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Product } from '@/lib/types';
-import { COLOR_DOT_GRADIENT } from '@/lib/products';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import ProductCard from './ProductCard';
 
 const PLACEMENTS = ['all', 'ear', 'nose', 'belly', 'nipple'];
 const PAGE_SIZE = 20;
 
-const COLORS = [
+type FilterKind = 'none' | 'color' | 'material_tag';
+
+interface ColorOption {
+  key:          string;
+  label:        string;
+  description:  string;
+  filterKind:   FilterKind;
+  filterValue:  string | null;
+  activeBg:     string;
+  activeBorder: string;
+  activeText:   string;
+  orb:          string | null;
+}
+
+const COLORS: ColorOption[] = [
   {
     key:         'all',
-    label:       'All Colors',
-    description: 'Gold & Silver',
+    label:       'All',
+    description: 'Browse Everything',
+    filterKind:  'none',
+    filterValue: null,
     activeBg:    '#F5F4F2',
     activeBorder:'#1a1a1a',
     activeText:  '#1a1a1a',
     orb:         'linear-gradient(135deg, #C8922E 0%, #C8922E 50%, #94A3B8 50%, #94A3B8 100%)',
   },
   {
-    key:         'gold',
-    label:       'Gold',
+    key:         'surgical-steel',
+    label:       'Surgical Steel',
     description: 'Classic & Warm',
+    filterKind:  'color',
+    filterValue: 'gold',
     activeBg:    '#FBF7EF',
     activeBorder:'#C8922E',
     activeText:  '#8A6030',
-    orb:         null,
+    orb:         'linear-gradient(135deg,#C8922E,#EDD898)',
   },
   {
-    key:         'silver',
-    label:       'Silver',
+    key:         'titanium',
+    label:       'Titanium',
     description: 'Sleek & Cool',
+    filterKind:  'color',
+    filterValue: 'titanium',
     activeBg:    '#F0F5FA',
     activeBorder:'#94A3B8',
     activeText:  '#3A6888',
-    orb:         null,
+    orb:         'linear-gradient(135deg,#909090,#D0D0D0)',
+  },
+  {
+    key:         'gold-plated-hoops',
+    label:       'Gold Plated Hoops',
+    description: 'Premium Shine',
+    filterKind:  'material_tag',
+    filterValue: 'gold-plated-hoops',
+    activeBg:    '#FFF8E1',
+    activeBorder:'#D4A017',
+    activeText:  '#7A5410',
+    orb:         'radial-gradient(circle, transparent 32%, #D4A017 34%, #F4D06F 65%, #B8860B 100%)',
   },
 ];
 
@@ -90,7 +120,7 @@ export default function Shop({
                                eyebrow = 'The Collection',
                                hideHeader = false,
                              }: Props) {
-  const [activeColor, setActiveColor]           = useState<string>('all');
+  const [activeColor, setActiveColor]           = useState<string>(COLORS[0].key);
   const [internalCategory, setInternalCategory] = useState<string>('all');
   const activeCategory = controlledCategory ?? internalCategory;
   const setActiveCategory = (c: string) => setInternalCategory(c);
@@ -115,10 +145,24 @@ export default function Shop({
         const params = new URLSearchParams({
           page:     String(page),
           limit:    String(PAGE_SIZE),
-          color:    materialTag ? 'all' : activeColor,
-          category: materialTag ? activeCategory : activeCategory,
+          category: activeCategory,
         });
-        if (materialTag) params.append('material_tag', materialTag);
+
+        if (materialTag) {
+          // Parent controls this section to a specific material — ignore user filter.
+          params.set('color', 'all');
+          params.append('material_tag', materialTag);
+        } else {
+          const selected = COLORS.find(c => c.key === activeColor) ?? COLORS[0];
+          if (selected.filterKind === 'color' && selected.filterValue) {
+            params.set('color', selected.filterValue);
+          } else if (selected.filterKind === 'material_tag' && selected.filterValue) {
+            params.set('color', 'all');
+            params.append('material_tag', selected.filterValue);
+          } else {
+            params.set('color', 'all');
+          }
+        }
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products?${params}`, {
           signal: controller.signal,
         });
@@ -187,33 +231,32 @@ export default function Shop({
               </div>
           )}
 
-          <div className={`grid grid-cols-3 gap-3 mb-8 w-full max-w-2xl ${materialTag ? 'hidden' : ''}`}>
+          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-8 w-full max-w-4xl ${materialTag ? 'hidden' : ''}`}>
             {COLORS.map(colorItem => {
               const isActive = activeColor === colorItem.key;
-              const orbBg    = colorItem.orb ?? (COLOR_DOT_GRADIENT as any)[colorItem.key];
               return (
                   <button
                       key={colorItem.key}
                       onClick={() => handleColorChange(colorItem.key)}
                       style={isActive ? { background: colorItem.activeBg, borderColor: colorItem.activeBorder } : {}}
-                      className={`flex items-center gap-2 sm:gap-3 px-2.5 py-3.5 sm:px-6 sm:py-5 rounded-sm border-2 text-left transition-all duration-200 ${
+                      className={`flex items-center gap-2.5 sm:gap-3 px-3 py-3 sm:px-5 sm:py-5 rounded-sm border-2 text-left transition-all duration-200 min-w-0 ${
                           isActive
                               ? 'shadow-sm'
                               : 'border-border-lt bg-bg-card hover:border-border hover:shadow-sm'
                       }`}
                   >
                 <span
-                    className="w-6 h-6 sm:w-9 sm:h-9 rounded-full flex-shrink-0 border border-border-lt"
-                    style={{ background: orbBg }}
+                    className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex-shrink-0 border border-border-lt"
+                    style={{ background: colorItem.orb ?? undefined }}
                 />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
-                          className="text-[0.78rem] sm:text-[0.95rem] font-semibold font-sans sm:font-serif leading-tight tracking-tight sm:tracking-normal"
+                          className="text-[0.72rem] sm:text-[0.92rem] font-semibold font-sans sm:font-serif leading-tight tracking-tight sm:tracking-normal break-words"
                           style={isActive ? { color: colorItem.activeText } : { color: 'var(--color-ink)' }}
                       >
                         {colorItem.label}
                       </p>
-                      <p className="text-[0.62rem] sm:text-[0.68rem] text-ink-3 mt-0.5 font-light hidden sm:block">
+                      <p className="text-[0.62rem] sm:text-[0.68rem] text-ink-3 mt-0.5 font-light hidden sm:block truncate">
                         {colorItem.description}
                       </p>
                     </div>

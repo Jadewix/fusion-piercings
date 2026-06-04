@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 
@@ -95,12 +96,13 @@ export default function Nav() {
             </svg>
           </button>
 
-          <a
-              href="#home"
+          <Link
+              href="/"
+              aria-label="Fusion Piercings — home"
               className="flex-shrink-0 absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 md:mr-auto"
           >
             <img src="/img/Fusion-logo-svg.svg" alt="Fusion Piercings" className="h-8 sm:h-9 w-auto" />
-          </a>
+          </Link>
 
           <ul className="hidden md:flex gap-10 ml-auto">
             {NAV_LINKS.map(({ label, href, hasDropdown }) => {

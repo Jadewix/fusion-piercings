@@ -29,7 +29,7 @@ function reducer(state: CartItem[], action: Action): CartItem[] {
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product, size: string | null, colorOverride?: string) => void;
+  addToCart: (product: Product, size: string | null, colorOverride?: string, priceOverride?: number | null) => void;
   removeFromCart: (cartKey: string) => void;
   updateQty: (cartKey: string, delta: number) => void;
   clearCart: () => void;
@@ -71,13 +71,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToast(''), 2600);
   }, []);
 
-  const addToCart = useCallback((product: Product, size: string | null, colorOverride?: string) => {
+  const addToCart = useCallback((product: Product, size: string | null, colorOverride?: string, priceOverride?: number | null) => {
     // Use the override (for "both" products) or the product's color
     const color = colorOverride || product.color || 'gold';
     const cartKey = `${product.id}-${size ?? 'default'}-${color}`;
 
-    // We parse the price to a number safely, just in case Postgres sends a string
-    const safePrice = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
+    // Per-size price override takes precedence; otherwise parse the base price safely
+    // (Postgres can send numerics as strings).
+    const basePrice = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
+    const safePrice = priceOverride != null && Number.isFinite(priceOverride) ? priceOverride : basePrice;
 
     dispatch({
       type: 'ADD',

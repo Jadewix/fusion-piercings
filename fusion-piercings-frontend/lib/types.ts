@@ -3,6 +3,12 @@
 export interface ProductSize {
   size: string;
   in_stock: boolean;
+  price?: number | null;
+}
+
+export interface ProductColor {
+  color: string;
+  in_stock: boolean;
 }
 
 export interface Product {
@@ -15,7 +21,9 @@ export interface Product {
   stock_count?: number;
 
   category?: string;
+  categories?: string[];
   color?: string;           // <-- Changed from metal to color
+  colors?: ProductColor[];
   sizes?: ProductSize[];
   symbol?: string;
   material_tags?: string[];
@@ -47,6 +55,13 @@ export interface Order {
   total_amount: number | string;
   status: OrderStatus;
   created_at: string;
+}
+
+export interface Collection {
+  id: number;
+  slug: string;
+  name: string;
+  sort_order: number;
 }
 
 export interface CartItem {

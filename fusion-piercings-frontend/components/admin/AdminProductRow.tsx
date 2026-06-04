@@ -4,6 +4,7 @@
 import { memo } from 'react';
 import Image from 'next/image';
 import { Product } from '@/lib/types';
+import { COLOR_LABELS } from '@/lib/products';
 
 interface AdminProductRowProps {
   product: Product;
@@ -14,6 +15,9 @@ interface AdminProductRowProps {
 
 function AdminProductRowBase({ product, onToggleStock, onEdit, onDelete }: AdminProductRowProps) {
   const isActive = product.stock_count !== 0;
+  const rawColor = product.color || 'gold';
+  const isCool   = rawColor === 'titanium' || rawColor === 'silver';
+  const colorLabel = COLOR_LABELS[rawColor] || rawColor;
 
   return (
     <div className="flex gap-3 sm:items-center sm:gap-6 p-3 sm:p-4 bg-bg-card border border-border-lt rounded-sm hover:border-ink transition-all mb-3">
@@ -28,11 +32,11 @@ function AdminProductRowBase({ product, onToggleStock, onEdit, onDelete }: Admin
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-[0.6rem] sm:text-[0.65rem] font-semibold tracking-[0.2em] uppercase text-ink-3">{product.category || 'Collection'}</span>
             <span className={`text-[0.55rem] sm:text-[0.6rem] font-bold tracking-[0.15em] uppercase px-1.5 sm:px-2 py-0.5 rounded-full border ${
-                (product.color || 'gold') === 'silver'
+                isCool
                 ? 'border-blue-200 text-blue-500 bg-blue-50'
                 : 'border-yellow-200 text-yellow-700 bg-yellow-50'
             }`}>
-              {product.color || 'gold'}
+              {colorLabel}
             </span>
           </div>
           <h3 className="text-[0.92rem] sm:text-[1rem] font-medium text-ink leading-snug">{product.name}</h3>

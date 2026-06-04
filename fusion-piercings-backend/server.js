@@ -56,6 +56,18 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 // 3. Configure Multer (Keeps the uploaded image in memory temporarily)
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Multer wrapper: emits clean JSON on file-count overflow and other multer errors.
+const _imagesMulter = upload.array('images', 5);
+function uploadImages(req, res, next) {
+    _imagesMulter(req, res, (err) => {
+        if (!err) return next();
+        if (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT') {
+            return res.status(400).json({ error: "A product can have at most 5 images" });
+        }
+        return res.status(400).json({ error: err.message || "Upload failed" });
+    });
+}
+
 // --- PUBLIC ROUTES (For the Storefront) ---
 
 app.get('/api/products', async (req, res) => {
@@ -79,7 +91,10 @@ app.get('/api/products', async (req, res) => {
     }
     if (category && category !== 'all') {
         params.push(category);
-        conditions.push(`category = $${params.length}`);
+        // Match products tagged with this placement either in the new categories[]
+        // array, or in the legacy single-value `category` column for any rows that
+        // haven't been backfilled yet.
+        conditions.push(`($${params.length} = ANY(categories) OR category = $${params.length})`);
     }
     if (material_tag) {
         params.push(material_tag);
@@ -123,6 +138,18 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
+app.get('/api/collections', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, slug, name, sort_order FROM collections ORDER BY sort_order, name'
+        );
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error('Error fetching collections:', error);
+        res.status(500).json({ error: 'Failed to fetch collections' });
+    }
+});
+
 app.get('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     try {
@@ -137,18 +164,71 @@ app.get('/api/products/:id', async (req, res) => {
 
 // --- ADMIN ROUTES (For the Owner's Dashboard) ---
 
-// Normalise an incoming sizes payload to [{size, in_stock}]
+// Normalise an incoming colors payload to [{color, in_stock}].
+// Accepts JSON like `[{"color":"gold","in_stock":true}, ...]` from the admin form,
+// or a legacy single-value 'color' string ('gold' | 'silver' | 'titanium' | 'both').
+function normaliseColors(raw, legacyColor) {
+    let parsed = null;
+    if (raw) {
+        try {
+            const j = JSON.parse(raw);
+            if (Array.isArray(j)) parsed = j;
+        } catch { /* fall through */ }
+    }
+    if (parsed && parsed.length > 0) {
+        const seen = new Set();
+        return parsed.map(c => {
+            if (typeof c === 'string') return { color: c, in_stock: true };
+            return { color: String(c.color), in_stock: c.in_stock !== false };
+        }).filter(c => {
+            if (seen.has(c.color)) return false;
+            seen.add(c.color);
+            return true;
+        });
+    }
+    // Fallback: decode the legacy single 'color' value.
+    const c = legacyColor;
+    if (c === 'both')     return [{ color: 'gold', in_stock: true }, { color: 'silver', in_stock: true }];
+    if (c === 'silver' || c === 'titanium') return [{ color: 'silver', in_stock: true }];
+    if (c === 'gold')     return [{ color: 'gold',   in_stock: true }];
+    return [];
+}
+
+// Derive the legacy single `color` VARCHAR from a colors[] array so the
+// storefront filter (which still queries `color = 'gold' OR 'both'`) keeps
+// working without a separate join.
+function deriveColorString(colorsArr) {
+    if (!Array.isArray(colorsArr) || colorsArr.length === 0) return 'gold';
+    const slugs = colorsArr.map(c => c.color);
+    const hasGold   = slugs.includes('gold');
+    const hasSilver = slugs.includes('silver');
+    if (hasGold && hasSilver) return 'both';
+    if (hasSilver) return 'silver';
+    return 'gold';
+}
+
+// Normalise an incoming sizes payload to [{size, in_stock, price}]
+// price is optional; null/undefined means "use the product's base price".
 function normaliseSizes(raw) {
-    if (!raw) return [{ size: 'One Size', in_stock: true }];
+    if (!raw) return [{ size: 'One Size', in_stock: true, price: null }];
     let parsed;
     try { parsed = JSON.parse(raw); }
     catch { parsed = String(raw).split(',').map(s => s.trim()).filter(Boolean); }
-    if (!Array.isArray(parsed) || parsed.length === 0) return [{ size: 'One Size', in_stock: true }];
-    return parsed.map(s =>
-        typeof s === 'string'
-            ? { size: s, in_stock: true }
-            : { size: String(s.size), in_stock: s.in_stock !== false }
-    );
+    if (!Array.isArray(parsed) || parsed.length === 0) return [{ size: 'One Size', in_stock: true, price: null }];
+    return parsed.map(s => {
+        if (typeof s === 'string') return { size: s, in_stock: true, price: null };
+        const rawPrice = s.price;
+        let price = null;
+        if (rawPrice != null && rawPrice !== '') {
+            const n = Number(rawPrice);
+            if (Number.isFinite(n) && n >= 0) price = n;
+        }
+        return {
+            size: String(s.size),
+            in_stock: s.in_stock !== false,
+            price,
+        };
+    });
 }
 
 // Upload one in-memory file to Supabase and return its public URL.
@@ -160,12 +240,28 @@ async function uploadOne(file) {
     return data.publicUrl;
 }
 
-app.post('/api/products', upload.array('images', 10), async (req, res) => {
-    // CHANGED: Extract 'color' instead of 'metal'
-    const { name, description, price, category, color, sizes, material_tags } = req.body;
+// Parse a categories payload (JSON array of slugs) into a clean string[].
+// Falls back to [singleCategory] when the multi field is missing/invalid.
+function parseCategories(raw, fallbackSingle) {
+    let parsed = null;
+    if (raw) {
+        try {
+            const j = JSON.parse(raw);
+            if (Array.isArray(j)) parsed = j.map(String).map(s => s.trim()).filter(Boolean);
+        } catch { /* fall through */ }
+    }
+    if (!parsed || parsed.length === 0) {
+        return fallbackSingle ? [String(fallbackSingle)] : ['ear'];
+    }
+    return Array.from(new Set(parsed));
+}
+
+app.post('/api/products', uploadImages, async (req, res) => {
+    const { name, description, price, category, color, sizes, material_tags, categories, colors } = req.body;
     const files = req.files || [];
 
     if (files.length === 0) return res.status(400).json({ error: "At least one image is required" });
+    if (files.length > 5)   return res.status(400).json({ error: "A product can have at most 5 images" });
 
     const parsedSizes = normaliseSizes(sizes);
 
@@ -175,14 +271,26 @@ app.post('/api/products', upload.array('images', 10), async (req, res) => {
         catch { parsedMaterialTags = []; }
     }
 
+    const parsedCategories = parseCategories(categories, category);
+    const primaryCategory  = parsedCategories[0];
+
+    const parsedColors  = normaliseColors(colors, color);
+    const derivedColor  = deriveColorString(parsedColors);
+
     try {
         const urls = [];
         for (const f of files) urls.push(await uploadOne(f));
 
         const result = await pool.query(
-            `INSERT INTO products (name, description, price, image_url, image_urls, category, color, sizes, stock_count, material_tags)
-             VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8::jsonb, 999, $9::text[]) RETURNING *`,
-            [name, description, price, urls[0], urls, category || 'ear', color || 'gold', JSON.stringify(parsedSizes), parsedMaterialTags]
+            `INSERT INTO products (name, description, price, image_url, image_urls, category, categories, color, colors, sizes, stock_count, material_tags)
+             VALUES ($1, $2, $3, $4, $5::text[], $6, $7::text[], $8, $9::jsonb, $10::jsonb, 999, $11::text[]) RETURNING *`,
+            [
+                name, description, price, urls[0], urls,
+                primaryCategory, parsedCategories,
+                derivedColor, JSON.stringify(parsedColors),
+                JSON.stringify(parsedSizes),
+                parsedMaterialTags,
+            ]
         );
 
         res.status(201).json({ message: "Product created!", product: result.rows[0] });
@@ -210,10 +318,9 @@ app.patch('/api/products/:id/stock', async (req, res) => {
     }
 });
 
-app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
+app.put('/api/products/:id', uploadImages, async (req, res) => {
     const { id } = req.params;
-    // CHANGED: Extract 'color' instead of 'metal'
-    const { name, description, price, category, color, sizes, material_tags, existing_image_urls } = req.body;
+    const { name, description, price, category, color, sizes, material_tags, existing_image_urls, categories, colors } = req.body;
     const files = req.files || [];
 
     const parsedSizes = sizes !== undefined ? JSON.stringify(normaliseSizes(sizes)) : null;
@@ -224,12 +331,46 @@ app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
         catch { parsedMaterialTags = null; }
     }
 
+    // categories is optional on PUT; if present, parse to array, else leave null so COALESCE keeps existing
+    let parsedCategories = null;
+    let primaryCategory  = null;
+    if (categories !== undefined) {
+        parsedCategories = parseCategories(categories, category);
+        primaryCategory  = parsedCategories[0];
+    } else if (category) {
+        // Caller sent only legacy single category — keep both fields in sync
+        primaryCategory  = category;
+        parsedCategories = [category];
+    }
+
+    // colors is optional on PUT; if present, normalise and derive a single
+    // `color` value so the legacy column tracks. If absent, leave null and let
+    // COALESCE keep the existing values for both columns.
+    let parsedColorsJson = null;
+    let derivedColorStr  = null;
+    if (colors !== undefined) {
+        const arr = normaliseColors(colors, color);
+        parsedColorsJson = JSON.stringify(arr);
+        derivedColorStr  = deriveColorString(arr);
+    } else if (color !== undefined) {
+        // Caller sent only legacy single color — sync the array form too.
+        const arr = normaliseColors(null, color);
+        parsedColorsJson = JSON.stringify(arr);
+        derivedColorStr  = color;
+    }
+
     let keptExisting = null;
     if (existing_image_urls) {
         try {
             const parsed = JSON.parse(existing_image_urls);
             if (Array.isArray(parsed)) keptExisting = parsed.filter(u => typeof u === 'string');
         } catch { keptExisting = null; }
+    }
+
+    // Enforce the 5-image cap on the combined set (kept + newly uploaded).
+    const projectedCount = (keptExisting?.length ?? 0) + files.length;
+    if (projectedCount > 5) {
+        return res.status(400).json({ error: "A product can have at most 5 images" });
     }
 
     try {
@@ -245,13 +386,22 @@ app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
         const result = await pool.query(
             `UPDATE products
              SET name = COALESCE($1, name), description = COALESCE($2, description), price = COALESCE($3, price),
-                 category = COALESCE($4, category), color = COALESCE($5, color),
-                 sizes = COALESCE($6::jsonb, sizes),
-                 image_url = COALESCE($7, image_url),
-                 image_urls = COALESCE($8::text[], image_urls),
-                 material_tags = COALESCE($9::text[], material_tags)
-             WHERE id = $10 RETURNING *`,
-            [name, description, price, category, color, parsedSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags, id]
+                 category = COALESCE($4, category),
+                 categories = COALESCE($5::text[], categories),
+                 color = COALESCE($6, color),
+                 colors = COALESCE($7::jsonb, colors),
+                 sizes = COALESCE($8::jsonb, sizes),
+                 image_url = COALESCE($9, image_url),
+                 image_urls = COALESCE($10::text[], image_urls),
+                 material_tags = COALESCE($11::text[], material_tags)
+             WHERE id = $12 RETURNING *`,
+            [
+                name, description, price,
+                primaryCategory, parsedCategories,
+                derivedColorStr, parsedColorsJson,
+                parsedSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags,
+                id,
+            ]
         );
 
         if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
@@ -511,6 +661,24 @@ async function initDB() {
         )
     `);
 
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS collections (
+            id         SERIAL PRIMARY KEY,
+            slug       VARCHAR UNIQUE NOT NULL,
+            name       VARCHAR NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    // Seed canonical collections — idempotent.
+    await pool.query(`
+        INSERT INTO collections (slug, name, sort_order) VALUES
+            ('titanium',          'Titanium',          10),
+            ('surgical-steel',    'Surgical Steel',    20),
+            ('gold-plated-hoops', 'Gold Plated Hoops', 30)
+        ON CONFLICT (slug) DO NOTHING
+    `);
+
     // Create products table if it doesn't exist yet
     await pool.query(`
         CREATE TABLE IF NOT EXISTS products (
@@ -521,7 +689,9 @@ async function initDB() {
             image_url     TEXT,
             image_urls    TEXT[] DEFAULT '{}',
             category      VARCHAR DEFAULT 'ear',
+            categories    TEXT[] DEFAULT '{}',
             color         VARCHAR DEFAULT 'gold',
+            colors        JSONB  DEFAULT '[]'::jsonb,
             sizes         JSONB  DEFAULT '[]'::jsonb,
             stock_count   INTEGER DEFAULT 999,
             material_tags TEXT[] DEFAULT '{}',
@@ -549,12 +719,46 @@ async function initDB() {
     await ensureColumn('image_url',     "TEXT");
     await ensureColumn('image_urls',    "TEXT[] DEFAULT '{}'");
     await ensureColumn('category',      "VARCHAR DEFAULT 'ear'");
+    await ensureColumn('categories',    "TEXT[] DEFAULT '{}'");
     await ensureColumn('color',         "VARCHAR DEFAULT 'gold'"); // <-- Ensures it exists if table was made without it
+    await ensureColumn('colors',        "JSONB DEFAULT '[]'::jsonb");
     await ensureColumn('sizes',         "TEXT[] DEFAULT '{}'");
     await ensureColumn('stock_count',   "INTEGER DEFAULT 999");
     await ensureColumn('material_tags', "TEXT[] DEFAULT '{}'");
 
+    // Backfill: any row that already has a legacy single `category` but an empty
+    // `categories` array gets seeded so new multi-select filtering finds it.
+    await pool.query(`
+        UPDATE products
+        SET categories = ARRAY[category]
+        WHERE (categories IS NULL OR cardinality(categories) = 0)
+          AND category IS NOT NULL
+    `);
+
+    // Backfill: derive the colors[] array from the legacy single `color` for rows
+    // that haven't been edited since this migration.
+    await pool.query(`
+        UPDATE products
+        SET colors = CASE
+            WHEN color = 'both'     THEN '[{"color":"gold","in_stock":true},{"color":"silver","in_stock":true}]'::jsonb
+            WHEN color = 'silver'   THEN '[{"color":"silver","in_stock":true}]'::jsonb
+            WHEN color = 'titanium' THEN '[{"color":"silver","in_stock":true}]'::jsonb
+            WHEN color = 'gold'     THEN '[{"color":"gold","in_stock":true}]'::jsonb
+            ELSE '[]'::jsonb
+        END
+        WHERE colors IS NULL OR jsonb_array_length(COALESCE(colors, '[]'::jsonb)) = 0
+    `);
+
     await pool.query(`UPDATE products SET stock_count = 999 WHERE stock_count IS NULL`);
+
+    // Drop the legacy NOT NULL on `old_image_url` (deprecated — superseded by image_url
+    // and image_urls). Without this, new INSERTs fail because we no longer write the column.
+    await pool.query(`
+        DO $$ BEGIN
+            ALTER TABLE products ALTER COLUMN old_image_url DROP NOT NULL;
+        EXCEPTION WHEN undefined_column THEN NULL;
+        END $$
+    `);
 
     await pool.query(`
         DO $$ BEGIN

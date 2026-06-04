@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Product, ProductSize } from '@/lib/types';
+import { Product, ProductSize, ProductColor } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { COLOR_DOT_GRADIENT, COLOR_LABELS } from '@/lib/products';
 
@@ -12,11 +12,35 @@ interface Props {
   productId: string;
 }
 
+function coerceColors(raw: unknown, legacyColor?: string): ProductColor[] {
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map((c: any) =>
+        typeof c === 'string'
+            ? { color: c, in_stock: true }
+            : { color: String(c.color), in_stock: c.in_stock !== false }
+    );
+  }
+  if (legacyColor === 'both') return [{ color: 'gold', in_stock: true }, { color: 'silver', in_stock: true }];
+  if (legacyColor === 'silver' || legacyColor === 'titanium') return [{ color: 'silver', in_stock: true }];
+  if (legacyColor === 'gold') return [{ color: 'gold', in_stock: true }];
+  return [];
+}
+
 function coerceSizes(raw: unknown): ProductSize[] {
   if (!Array.isArray(raw) || raw.length === 0) return [{ size: 'One Size', in_stock: true }];
-  return raw.map((s: any) =>
-      typeof s === 'string' ? { size: s, in_stock: true } : { size: String(s.size), in_stock: s.in_stock !== false }
-  );
+  return raw.map((s: any) => {
+    if (typeof s === 'string') return { size: s, in_stock: true };
+    const rawPrice = s.price;
+    const parsedPrice =
+        rawPrice == null || rawPrice === ''
+            ? null
+            : Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
+    return {
+      size: String(s.size),
+      in_stock: s.in_stock !== false,
+      price: parsedPrice,
+    };
+  });
 }
 
 export default function ProductDetailClient({ productId }: Props) {
@@ -28,7 +52,7 @@ export default function ProductDetailClient({ productId }: Props) {
 
   const [activeImage, setActiveImage]     = useState(0);
   const [selectedSize, setSelectedSize]   = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string>('gold');
+  const [selectedColor, setSelectedColor] = useState<string>('gold'); // 'gold' = Surgical Steel
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +69,9 @@ export default function ProductDetailClient({ productId }: Props) {
           const sizes = coerceSizes(data.sizes);
           const firstAvailable = sizes.find(s => s.in_stock) ?? sizes[0];
           setSelectedSize(firstAvailable?.size ?? null);
+          const colors = coerceColors(data.colors, data.color);
+          const firstColor = colors.find(c => c.in_stock) ?? colors[0];
+          if (firstColor) setSelectedColor(firstColor.color);
           setActiveImage(0);
         })
         .catch(() => { if (!cancelled) setError(true); })
@@ -53,11 +80,27 @@ export default function ProductDetailClient({ productId }: Props) {
   }, [productId]);
 
   const sizes  = useMemo(() => coerceSizes(product?.sizes), [product?.sizes]);
+  const colors = useMemo(
+      () => coerceColors(product?.colors, product?.color),
+      [product?.colors, product?.color]
+  );
   const images = useMemo(() => {
     if (!product) return [];
     if (product.image_urls && product.image_urls.length > 0) return product.image_urls;
     return product.image_url ? [product.image_url] : [];
   }, [product]);
+
+  // Keyboard navigation for the gallery. Declared here (before any early
+  // returns) so hook order stays stable across renders.
+  useEffect(() => {
+    if (images.length < 2) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft')  setActiveImage(i => (i - 1 + images.length) % images.length);
+      if (e.key === 'ArrowRight') setActiveImage(i => (i + 1) % images.length);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [images.length]);
 
   if (loading) {
     return (
@@ -80,15 +123,33 @@ export default function ProductDetailClient({ productId }: Props) {
 
   const isBothColor     = product.color === 'both';
   const allSizesOOS     = sizes.every(s => !s.in_stock);
-  const isProductOOS    = Number(product.stock_count) === 0 || allSizesOOS;
-  const selectedSizeOOS = sizes.find(s => s.size === selectedSize)?.in_stock === false;
-  const canAdd          = !isProductOOS && selectedSize !== null && !selectedSizeOOS;
-  const formattedPrice  = Number(product.price).toFixed(2);
+  const allColorsOOS    = colors.length > 0 && colors.every(c => !c.in_stock);
+  const isProductOOS    = Number(product.stock_count) === 0 || allSizesOOS || allColorsOOS;
+  const selectedSizeObj = sizes.find(s => s.size === selectedSize);
+  const selectedSizeOOS = selectedSizeObj?.in_stock === false;
+  const selectedColorObj = colors.find(c => c.color === selectedColor);
+  const selectedColorOOS = isBothColor && selectedColorObj?.in_stock === false;
+  const canAdd          = !isProductOOS && selectedSize !== null && !selectedSizeOOS && !selectedColorOOS;
+
+  const basePrice       = Number(product.price);
+  const effectivePrice  = selectedSizeObj?.price != null && Number.isFinite(selectedSizeObj.price)
+                            ? Number(selectedSizeObj.price)
+                            : basePrice;
+  const formattedPrice  = effectivePrice.toFixed(2);
 
   function handleAdd() {
     if (!canAdd || !product) return;
-    addToCart(product, selectedSize, isBothColor ? selectedColor : undefined);
+    addToCart(
+        product,
+        selectedSize,
+        isBothColor ? selectedColor : undefined,
+        selectedSizeObj?.price ?? null,
+    );
   }
+
+  const hasMultipleImages = images.length > 1;
+  const goPrev = () => setActiveImage(i => (i - 1 + images.length) % images.length);
+  const goNext = () => setActiveImage(i => (i + 1) % images.length);
 
   return (
       <div className="max-w-[1100px] mx-auto px-4 sm:px-8 py-10 sm:py-14">
@@ -106,7 +167,7 @@ export default function ProductDetailClient({ productId }: Props) {
 
           {/* ── Gallery ──────────────────────────────────────────────── */}
           <div>
-            <div className="aspect-square relative overflow-hidden bg-gray-50 rounded-sm border border-border-lt">
+            <div className="aspect-square relative overflow-hidden bg-gray-50 rounded-sm border border-border-lt group">
               {images[activeImage] ? (
                   <Image
                       src={images[activeImage]}
@@ -120,6 +181,37 @@ export default function ProductDetailClient({ productId }: Props) {
                   <div className="w-full h-full flex items-center justify-center text-ink-3 text-sm">
                     No Image
                   </div>
+              )}
+
+              {hasMultipleImages && (
+                  <>
+                    <button
+                        type="button"
+                        onClick={goPrev}
+                        aria-label="Previous image"
+                        className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/85 backdrop-blur-sm text-ink shadow-sm flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all opacity-80 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M15 18l-6-6 6-6"/>
+                      </svg>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={goNext}
+                        aria-label="Next image"
+                        className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/85 backdrop-blur-sm text-ink shadow-sm flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all opacity-80 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </button>
+                    <span
+                        aria-hidden="true"
+                        className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-ink/70 text-bg text-[0.62rem] font-medium tracking-wider"
+                    >
+                      {activeImage + 1} / {images.length}
+                    </span>
+                  </>
               )}
             </div>
 
@@ -171,24 +263,34 @@ export default function ProductDetailClient({ productId }: Props) {
                     Color
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {['gold', 'silver'].map(c => (
-                        <button
-                            key={c}
-                            onClick={() => setSelectedColor(c)}
-                            className={`flex items-center gap-2 px-4 py-1.5 text-[0.78rem] font-medium rounded-full border transition-all duration-200 ${
-                                selectedColor === c
-                                    ? 'bg-ink border-ink text-bg'
-                                    : 'bg-transparent border-border text-ink-2 hover:border-ink hover:text-ink'
-                            }`}
-                        >
-                    <span
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-border-lt"
-                        style={{ background: COLOR_DOT_GRADIENT[c] || '#D4AF37' }}
-                    />
-                          {COLOR_LABELS[c] || c}
-                        </button>
-                    ))}
+                    {['gold', 'silver'].map(c => {
+                      const colorEntry = colors.find(co => co.color === c);
+                      const inStock    = colorEntry ? colorEntry.in_stock : true;
+                      const selected   = selectedColor === c;
+                      return (
+                          <button
+                              key={c}
+                              onClick={() => setSelectedColor(c)}
+                              aria-pressed={selected}
+                              aria-label={`${COLOR_LABELS[c] || c}${inStock ? '' : ' (out of stock)'}`}
+                              className={`flex items-center gap-2 px-4 py-1.5 text-[0.78rem] font-medium rounded-full border transition-all duration-200 ${
+                                  selected
+                                      ? 'bg-ink border-ink text-bg'
+                                      : 'bg-transparent border-border text-ink-2 hover:border-ink hover:text-ink'
+                              } ${!inStock ? 'line-through text-ink-3 hover:border-border' : ''}`}
+                          >
+                      <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-border-lt"
+                          style={{ background: COLOR_DOT_GRADIENT[c] || '#D4AF37' }}
+                      />
+                            {COLOR_LABELS[c] || c}
+                          </button>
+                      );
+                    })}
                   </div>
+                  {selectedColorOOS && (
+                      <p className="text-[0.72rem] text-red-500 mt-2.5">This color is currently out of stock.</p>
+                  )}
                 </div>
             )}
 
