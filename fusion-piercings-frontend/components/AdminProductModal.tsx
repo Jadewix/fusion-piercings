@@ -1,4 +1,3 @@
-// components/AdminProductModal.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -6,12 +5,11 @@ import Image from 'next/image';
 import { Product, ProductSize } from '@/lib/types';
 
 interface Props {
-    product?: Product | null; // If null, we are ADDING. If it has data, we are EDITING.
+    product?: Product | null;
     onClose: () => void;
     onSave: () => void;
 }
 
-// Legacy rows may still have sizes as string[]; coerce so the editor always works in ProductSize[].
 function coerceSizes(raw: unknown): ProductSize[] {
     if (!Array.isArray(raw) || raw.length === 0) return [{ size: 'One Size', in_stock: true }];
     return raw.map((s: any) =>
@@ -21,7 +19,7 @@ function coerceSizes(raw: unknown): ProductSize[] {
 
 interface PendingFile {
     file: File;
-    previewUrl: string; // object URL — revoked on unmount
+    previewUrl: string;
 }
 
 export default function AdminProductModal({ product, onClose, onSave }: Props) {
@@ -31,12 +29,11 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     const [price, setPrice]             = useState(product?.price?.toString() || '');
     const [description, setDescription] = useState(product?.description || '');
     const [category, setCategory]       = useState(product?.category || 'ear');
-    const [metal, setMetal]             = useState(product?.metal || 'gold');
+    const [color, setColor]             = useState(product?.color || 'gold'); // <-- Changed to Color
 
     const [sizes, setSizes] = useState<ProductSize[]>(coerceSizes(product?.sizes));
     const [newSizeLabel, setNewSizeLabel] = useState('');
 
-    // Image state: existing URLs the admin wants to keep, plus newly-picked files.
     const initialExisting = useMemo(() => {
         if (!product) return [];
         if (product.image_urls && product.image_urls.length > 0) return product.image_urls;
@@ -50,13 +47,11 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState('');
 
-    // Lock body scroll
     useEffect(() => {
         document.body.style.overflow = 'hidden';
         return () => { document.body.style.overflow = ''; };
     }, []);
 
-    // Revoke object URLs when component unmounts so we don't leak memory
     useEffect(() => () => {
         pendingFiles.forEach(p => URL.revokeObjectURL(p.previewUrl));
     }, [pendingFiles]);
@@ -115,11 +110,10 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             formData.append('price', price);
             formData.append('description', description);
             formData.append('category', category);
-            formData.append('metal', metal);
+            formData.append('color', color); // <-- Sent to backend as color
             formData.append('sizes', JSON.stringify(sizes));
             formData.append('material_tags', JSON.stringify(materialTags));
 
-            // When editing, tell the backend which existing image URLs to keep
             if (isEditing) formData.append('existing_image_urls', JSON.stringify(existingUrls));
 
             for (const p of pendingFiles) formData.append('images', p.file);
@@ -134,8 +128,6 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             });
             if (!res.ok) throw new Error('Failed to save product');
 
-            // Mirror "fully out of stock" into stock_count so the storefront's product card
-            // and inventory split keep working.
             const productId = isEditing ? product.id : (await res.clone().json()).product.id;
             const allOOS = sizes.every(s => !s.in_stock);
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
@@ -198,16 +190,15 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Metal</label>
-                            <select value={metal} onChange={e => setMetal(e.target.value)} className={inputClass}>
+                            <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Color</label>
+                            <select value={color} onChange={e => setColor(e.target.value)} className={inputClass}>
                                 <option value="gold">Gold</option>
-                                <option value="titanium">Titanium</option>
+                                <option value="silver">Silver</option>
                                 <option value="both">Both</option>
                             </select>
                         </div>
                     </div>
 
-                    {/* Sizes — each row has a label + in-stock toggle */}
                     <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Sizes & Stock</label>
                     <div className="border border-border-lt rounded-sm mb-4 overflow-hidden">
                         {sizes.length === 0 && (
@@ -233,7 +224,6 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                 <button
                                     type="button"
                                     onClick={() => removeSizeRow(size)}
-                                    aria-label={`Remove ${size}`}
                                     className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all"
                                 >
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -260,7 +250,6 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                         </button>
                     </div>
 
-                    {/* Material tags */}
                     <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Material Collections</label>
                     <div className="flex flex-col gap-2 mb-5">
                         {[
@@ -294,7 +283,6 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                         })}
                     </div>
 
-                    {/* Images — gallery with remove buttons + add-more file picker */}
                     <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Product Images</label>
                     <p className="text-[0.7rem] text-ink-3 mb-3">First image is the main thumbnail shown on cards and the cart.</p>
                     {(existingUrls.length > 0 || pendingFiles.length > 0) && (
@@ -305,7 +293,6 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                     <button
                                         type="button"
                                         onClick={() => removeExisting(url)}
-                                        aria-label="Remove image"
                                         className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/95 text-ink-2 hover:text-red-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
                                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -316,15 +303,11 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                             ))}
                             {pendingFiles.map((p, idx) => (
                                 <div key={p.previewUrl} className="relative aspect-square border border-dashed border-ink rounded-sm overflow-hidden group">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={p.previewUrl} alt="" className="w-full h-full object-cover" />
-                                    <span className="absolute bottom-1 left-1 text-[0.55rem] font-semibold tracking-wider uppercase bg-ink text-bg px-1.5 py-0.5 rounded-full">
-                                        new
-                                    </span>
+                                    <span className="absolute bottom-1 left-1 text-[0.55rem] font-semibold tracking-wider uppercase bg-ink text-bg px-1.5 py-0.5 rounded-full">new</span>
                                     <button
                                         type="button"
                                         onClick={() => removePending(idx)}
-                                        aria-label="Remove image"
                                         className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/95 text-ink-2 hover:text-red-500 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
                                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

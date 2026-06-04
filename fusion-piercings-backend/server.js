@@ -66,16 +66,16 @@ app.get('/api/products', async (req, res) => {
     if (!Number.isFinite(limit) || limit < 1) limit = 20;
     if (limit > 100) limit = 100; // safety cap so a client can't request the whole table
 
-    const { metal, category, material_tag } = req.query;
+    // CHANGED: Extract 'color' instead of 'metal'
+    const { color, category, material_tag } = req.query;
 
     // --- Build WHERE clause from optional filters ---
     const conditions = [];
     const params = [];
 
-    if (metal && metal !== 'all') {
-        // A product tagged 'both' should surface under either gold or titanium.
-        params.push(metal);
-        conditions.push(`(metal = $${params.length} OR metal = 'both')`);
+    if (color && color !== 'all') {
+        params.push(color);
+        conditions.push(`(color = $${params.length} OR color = 'both')`);
     }
     if (category && category !== 'all') {
         params.push(category);
@@ -137,9 +137,7 @@ app.get('/api/products/:id', async (req, res) => {
 
 // --- ADMIN ROUTES (For the Owner's Dashboard) ---
 
-// Normalise an incoming sizes payload to [{size, in_stock}] regardless of the
-// legacy shape the client sent (JSON array of objects, JSON array of strings,
-// or a comma-separated fallback).
+// Normalise an incoming sizes payload to [{size, in_stock}]
 function normaliseSizes(raw) {
     if (!raw) return [{ size: 'One Size', in_stock: true }];
     let parsed;
@@ -163,7 +161,8 @@ async function uploadOne(file) {
 }
 
 app.post('/api/products', upload.array('images', 10), async (req, res) => {
-    const { name, description, price, category, metal, sizes, material_tags } = req.body;
+    // CHANGED: Extract 'color' instead of 'metal'
+    const { name, description, price, category, color, sizes, material_tags } = req.body;
     const files = req.files || [];
 
     if (files.length === 0) return res.status(400).json({ error: "At least one image is required" });
@@ -181,9 +180,9 @@ app.post('/api/products', upload.array('images', 10), async (req, res) => {
         for (const f of files) urls.push(await uploadOne(f));
 
         const result = await pool.query(
-            `INSERT INTO products (name, description, price, image_url, image_urls, category, metal, sizes, stock_count, material_tags)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 999, $9) RETURNING *`,
-            [name, description, price, urls[0], urls, category || 'ear', metal || 'gold', JSON.stringify(parsedSizes), parsedMaterialTags]
+            `INSERT INTO products (name, description, price, image_url, image_urls, category, color, sizes, stock_count, material_tags)
+             VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8::jsonb, 999, $9::text[]) RETURNING *`,
+            [name, description, price, urls[0], urls, category || 'ear', color || 'gold', JSON.stringify(parsedSizes), parsedMaterialTags]
         );
 
         res.status(201).json({ message: "Product created!", product: result.rows[0] });
@@ -213,7 +212,8 @@ app.patch('/api/products/:id/stock', async (req, res) => {
 
 app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
     const { id } = req.params;
-    const { name, description, price, category, metal, sizes, material_tags, existing_image_urls } = req.body;
+    // CHANGED: Extract 'color' instead of 'metal'
+    const { name, description, price, category, color, sizes, material_tags, existing_image_urls } = req.body;
     const files = req.files || [];
 
     const parsedSizes = sizes !== undefined ? JSON.stringify(normaliseSizes(sizes)) : null;
@@ -224,8 +224,6 @@ app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
         catch { parsedMaterialTags = null; }
     }
 
-    // existing_image_urls is the set of previously-uploaded URLs the admin chose to keep.
-    // When provided, we treat the new image_urls as: kept-existing ++ newly-uploaded.
     let keptExisting = null;
     if (existing_image_urls) {
         try {
@@ -238,7 +236,6 @@ app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
         const uploadedUrls = [];
         for (const f of files) uploadedUrls.push(await uploadOne(f));
 
-        // Build the new image_urls array (only if the admin actually managed images this request)
         let newImageUrls = null;
         if (keptExisting !== null || uploadedUrls.length > 0) {
             newImageUrls = [...(keptExisting || []), ...uploadedUrls];
@@ -248,13 +245,13 @@ app.put('/api/products/:id', upload.array('images', 10), async (req, res) => {
         const result = await pool.query(
             `UPDATE products
              SET name = COALESCE($1, name), description = COALESCE($2, description), price = COALESCE($3, price),
-                 category = COALESCE($4, category), metal = COALESCE($5, metal),
+                 category = COALESCE($4, category), color = COALESCE($5, color),
                  sizes = COALESCE($6::jsonb, sizes),
                  image_url = COALESCE($7, image_url),
-                 image_urls = COALESCE($8, image_urls),
-                 material_tags = COALESCE($9, material_tags)
+                 image_urls = COALESCE($8::text[], image_urls),
+                 material_tags = COALESCE($9::text[], material_tags)
              WHERE id = $10 RETURNING *`,
-            [name, description, price, category, metal, parsedSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags, id]
+            [name, description, price, category, color, parsedSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags, id]
         );
 
         if (result.rows.length === 0) return res.status(404).json({ error: "Product not found" });
@@ -380,7 +377,7 @@ app.post('/api/orders', async (req, res) => {
                 <td style="padding: 16px 0; border-bottom: 1px solid #e5e5e5;">
                     <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1a1a1a;">${item.name}</p>
                     <p style="margin: 4px 0 0 0; font-size: 11px; color: #666666; text-transform: uppercase; letter-spacing: 1px;">
-                        Qty: ${item.qty} &middot; ${item.size ? item.size + ' &middot; ' : ''}${item.metal}
+                        Qty: ${item.qty} &middot; ${item.size ? item.size + ' &middot; ' : ''}${item.color || item.metal || ''}
                     </p>
                 </td>
                 <td style="padding: 16px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-size: 14px; font-weight: 600; color: #1a1a1a;">
@@ -513,7 +510,8 @@ async function initDB() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `);
-    // Create products table if it doesn't exist yet (works for fresh DBs)
+
+    // Create products table if it doesn't exist yet
     await pool.query(`
         CREATE TABLE IF NOT EXISTS products (
             id            SERIAL PRIMARY KEY,
@@ -523,15 +521,22 @@ async function initDB() {
             image_url     TEXT,
             image_urls    TEXT[] DEFAULT '{}',
             category      VARCHAR DEFAULT 'ear',
-            metal         VARCHAR DEFAULT 'gold',
+            color         VARCHAR DEFAULT 'gold',
             sizes         JSONB  DEFAULT '[]'::jsonb,
             stock_count   INTEGER DEFAULT 999,
             material_tags TEXT[] DEFAULT '{}',
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `);
-    // Defensive: make sure every column the CRUD endpoints reference actually exists,
-    // even for products tables created by hand with a slimmer schema.
+
+    // AUTO-RENAME metal to color so you don't lose data!
+    await pool.query(`
+        DO $$ BEGIN
+            ALTER TABLE products RENAME COLUMN metal TO color;
+        EXCEPTION WHEN undefined_column THEN NULL;
+        END $$
+    `);
+
     const ensureColumn = async (col, type) => {
         await pool.query(`
             DO $$ BEGIN
@@ -544,21 +549,20 @@ async function initDB() {
     await ensureColumn('image_url',     "TEXT");
     await ensureColumn('image_urls',    "TEXT[] DEFAULT '{}'");
     await ensureColumn('category',      "VARCHAR DEFAULT 'ear'");
-    await ensureColumn('metal',         "VARCHAR DEFAULT 'gold'");
+    await ensureColumn('color',         "VARCHAR DEFAULT 'gold'"); // <-- Ensures it exists if table was made without it
     await ensureColumn('sizes',         "TEXT[] DEFAULT '{}'");
     await ensureColumn('stock_count',   "INTEGER DEFAULT 999");
     await ensureColumn('material_tags', "TEXT[] DEFAULT '{}'");
-    // Backfill any products that were inserted before stock_count was required.
+
     await pool.query(`UPDATE products SET stock_count = 999 WHERE stock_count IS NULL`);
-    // Add status column to orders if it doesn't exist yet
+
     await pool.query(`
         DO $$ BEGIN
             ALTER TABLE orders ADD COLUMN status VARCHAR DEFAULT 'pending';
         EXCEPTION WHEN duplicate_column THEN NULL;
         END $$
     `);
-    // If a legacy 'old_image_url' column exists (the original name before a rename), copy its
-    // values into image_url so the rest of the migration / app can find them.
+
     await pool.query(`
         DO $$ BEGIN
             UPDATE products SET image_url = old_image_url
@@ -566,16 +570,14 @@ async function initDB() {
         EXCEPTION WHEN undefined_column THEN NULL;
         END $$
     `);
-    // Backfill image_urls from image_url for any rows uploaded before the gallery existed
+
     await pool.query(`
         UPDATE products
         SET image_urls = ARRAY[image_url]
         WHERE (image_urls IS NULL OR cardinality(image_urls) = 0)
           AND image_url IS NOT NULL
     `);
-    // Convert sizes from TEXT[] to JSONB [{size, in_stock}] so each size has its own stock flag.
-    // Postgres forbids subqueries in ALTER ... USING, so we do it via a temp column:
-    //   add sizes_new -> backfill from old TEXT[] -> drop old -> rename. Idempotent.
+
     await pool.query(`
         DO $$
         DECLARE

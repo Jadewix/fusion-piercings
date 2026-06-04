@@ -1,0 +1,18 @@
+[33me7d8c55[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31mvercel/main[m[33m)[m HEAD@{0}: pull vercel main: Merge made by the 'ort' strategy.
+[33m3d3d978[m HEAD@{1}: commit: Revert the last 4 commits
+[33m1f62f7e[m HEAD@{2}: reset: moving to HEAD~4
+[33m2dd56cc[m HEAD@{3}: commit: Updated storefront and admin to support multi-image product arrays
+[33m5983deb[m HEAD@{4}: commit: Updated storefront and admin to support multi-image product arrays
+[33mb776896[m HEAD@{5}: commit: Updated storefront and admin to support multi-image product arrays
+[33mecec0c0[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{6}: commit: Updated storefront and admin to support multi-image product arrays
+[33m1f62f7e[m HEAD@{7}: pull vercel main: Merge made by the 'ort' strategy.
+[33mb38858b[m HEAD@{8}: commit: Added Google Analytics
+[33mea230d3[m HEAD@{9}: pull origin main: Fast-forward
+[33m8740ff4[m HEAD@{10}: pull origin main: Fast-forward
+[33md1933ea[m HEAD@{11}: commit: brevo setup
+[33mbd0763f[m HEAD@{12}: commit: config
+[33mbe631c9[m HEAD@{13}: commit: config
+[33m2e4633e[m HEAD@{14}: commit: config
+[33mcc1a489[m HEAD@{15}: pull origin main: Fast-forward
+[33m499a00a[m HEAD@{16}: commit: some touches made by the one and only
+[33me7afcb6[m HEAD@{17}: clone: from https://github.com/Jadewix/fusion-piercings.git

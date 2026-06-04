@@ -9,17 +9,16 @@ export interface Product {
   id: number;
   name: string;
   description?: string;
-  price: number | string; // Postgres often sends decimals as strings
-  image_url?: string;     // Primary thumbnail (also image_urls[0])
-  image_urls?: string[];  // Full gallery, ordered
+  price: number | string;
+  image_url?: string;
+  image_urls?: string[];
   stock_count?: number;
 
-  // Optional UI fields (fallback until added to your DB)
   category?: string;
-  metal?: string;
+  color?: string;           // <-- Changed from metal to color
   sizes?: ProductSize[];
   symbol?: string;
-  material_tags?: string[]; // e.g. ['titanium', 'surgical-steel', 'gold-plated-hoops']
+  material_tags?: string[];
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
@@ -29,7 +28,7 @@ export interface OrderItem {
   price: number;
   qty: number;
   size?: string | null;
-  metal?: string;
+  color?: string;           // <-- Changed from metal to color
   image_url?: string;
 }
 
@@ -58,5 +57,5 @@ export interface CartItem {
   image_url?: string;
   qty: number;
   size: string | null;
-  metal?: string;
+  color?: string;           // <-- Changed from metal to color
 }
