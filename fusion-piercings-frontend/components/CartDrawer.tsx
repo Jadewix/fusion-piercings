@@ -10,10 +10,7 @@ export default function CartDrawer() {
   const needed = 75 - cartTotal;
 
   // A quick helper to format the metal name cleanly without needing the old dummy data file
-  const formatMetal = (metal?: string) => {
-    if (!metal) return 'Gold';
-    return metal.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  };
+
 
   return (
       <>
@@ -86,7 +83,7 @@ export default function CartDrawer() {
                         <div>
                           <p className="text-[0.85rem] font-medium text-ink mb-0.5">{item.name}</p>
                           <p className="text-[0.72rem] text-ink-3 mb-2 tracking-[0.04em]">
-                            {item.size ? `${item.size} · ` : ''}{formatMetal(item.metal)}
+                              {item.size ? `${item.size} · ` : ''}{item.color ? item.color.charAt(0).toUpperCase() + item.color.slice(1) : ''}
                           </p>
                           <div className="flex items-center gap-2">
                             <button onClick={() => updateQty(item.cartKey, -1)} className="w-6 h-6 rounded-full bg-border-lt text-ink-2 text-sm flex items-center justify-center hover:bg-ink hover:text-bg transition-all">−</button>

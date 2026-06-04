@@ -4,7 +4,7 @@
 import { memo, useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Order, OrderItem, OrderStatus } from '@/lib/types';
-import { ORDER_STATUSES, getStatusStyle, formatDate, formatMetal } from './shared';
+  import { ORDER_STATUSES, getStatusStyle, formatDate, formatColor } from './shared';
 
 interface AdminOrderRowProps {
   order: Order;
@@ -103,7 +103,7 @@ function AdminOrderRowBase({ order, isExpanded, onToggleExpand, onUpdateStatus }
                   <div className="flex-grow min-w-0">
                     <p className="text-[0.82rem] font-medium text-ink truncate">{item.name}</p>
                     <p className="text-[0.7rem] text-ink-3">
-                      Qty: {item.qty}{item.size ? ` · ${item.size}` : ''}{item.metal ? ` · ${formatMetal(item.metal)}` : ''}
+                      Qty: {item.qty}{item.size ? ` · ${item.size}` : ''}{item.color ? ` · ${formatColor(item.color)}` : ""}
                     </p>
                   </div>
                   <span className="text-[0.82rem] font-medium text-ink flex-shrink-0">${(item.price * item.qty).toFixed(2)}</span>

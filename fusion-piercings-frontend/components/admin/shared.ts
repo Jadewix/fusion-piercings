@@ -31,7 +31,7 @@ export function formatDate(dateStr: string): string {
   );
 }
 
-export function formatMetal(metal?: string): string {
-  if (!metal) return 'Gold';
-  return metal.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+export function formatColor(color?: string): string {
+  if (!color) return 'Gold';
+  return color.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
