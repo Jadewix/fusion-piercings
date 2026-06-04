@@ -27,10 +27,7 @@ export default function CheckoutPage() {
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
     // Formatting helpers
-    const formatMetal = (metal?: string) => {
-        if (!metal) return 'Gold';
-        return metal.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    };
+
 
     const deliveryFee = cartTotal >= 75 ? 0 : 3.00; // Standard $3 delivery fee if under $75
     const finalTotal = cartTotal + deliveryFee;
@@ -222,7 +219,7 @@ export default function CheckoutPage() {
                                         </div>
                                         <div className="flex-grow">
                                             <p className="text-[0.85rem] font-medium text-ink leading-tight mb-1">{item.name}</p>
-                                            <p className="text-[0.7rem] text-ink-3 mb-1">{item.size ? `${item.size} · ` : ''}{formatMetal(item.metal)}</p>
+                                            <p className="text-[0.7rem] text-ink-3 mb-1">{item.size ? `${item.size} · ` : ''}{item.color ? item.color.charAt(0).toUpperCase() + item.color.slice(1) : ''}</p>
                                             <p className="text-[0.75rem] text-ink-2">Qty: {item.qty}</p>
                                         </div>
                                         <div className="text-[0.85rem] font-medium text-ink">
