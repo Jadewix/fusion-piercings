@@ -4,6 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
+const sharp = require('sharp');
 
 // --- NEW BREVO EMAIL SETUP ---
 // We use native fetch to bypass Render's strict SMTP firewall.
@@ -232,10 +233,27 @@ function normaliseSizes(raw) {
 }
 
 // Upload one in-memory file to Supabase and return its public URL.
+// Upload one in-memory file to Supabase, auto-compressing it first.
 async function uploadOne(file) {
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.originalname.replace(/\s+/g, '-')}`;
-    const { error: uploadError } = await supabase.storage.from('jewelry-images').upload(fileName, file.buffer, { contentType: file.mimetype });
+    // 1. Process the image buffer using Sharp
+    const compressedBuffer = await sharp(file.buffer)
+        .resize({ width: 1200, withoutEnlargement: true }) // Max width 1200px (keeps it crisp but not massive)
+        .webp({ quality: 80 }) // Convert to WebP format at 80% quality
+        .toBuffer();
+
+    // 2. Build the filename (swap the old extension for .webp)
+    const originalNameNoExt = file.originalname.split('.').slice(0, -1).join('.');
+    const cleanName = originalNameNoExt.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${cleanName}.webp`;
+
+    // 3. Upload the compressed WebP buffer to Supabase
+    const { error: uploadError } = await supabase.storage.from('jewelry-images').upload(fileName, compressedBuffer, {
+        contentType: 'image/webp'
+    });
+
     if (uploadError) throw uploadError;
+
+    // 4. Return the public URL
     const { data } = supabase.storage.from('jewelry-images').getPublicUrl(fileName);
     return data.publicUrl;
 }
