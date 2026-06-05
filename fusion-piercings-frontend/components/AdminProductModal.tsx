@@ -297,10 +297,10 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     const inputClass = "w-full bg-transparent border border-border-lt rounded-sm px-4 py-2.5 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors mb-4";
 
     return (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-ink/50 backdrop-blur-[10px] animate-fade-in">
-            <div className="relative w-full max-w-[560px] bg-bg-card rounded-[20px] overflow-hidden shadow-xl animate-modal-enter">
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 sm:p-6 bg-ink/50 backdrop-blur-[10px] animate-fade-in">
+            <div className="relative w-full max-w-[560px] bg-bg-card rounded-[20px] overflow-hidden shadow-xl animate-modal-enter flex flex-col max-h-[90vh]">
 
-                <div className="px-7 pt-6 pb-4 border-b border-border-lt flex justify-between items-center bg-bg">
+                <div className="px-5 sm:px-7 pt-6 pb-4 border-b border-border-lt flex justify-between items-center bg-bg flex-shrink-0">
                     <h2 className="font-serif text-[1.5rem] font-semibold text-ink leading-tight">
                         {isEditing ? 'Edit Product' : 'Add New Product'}
                     </h2>
@@ -311,10 +311,11 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="px-7 py-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <form onSubmit={handleSubmit} className="px-5 sm:px-7 py-6 overflow-y-auto custom-scrollbar flex-1">
                     {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* 👇 CHANGED TO RESPONSIVE GRID (1 col mobile, 2 col desktop) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Name</label>
                             <input required value={name} onChange={e => setName(e.target.value)} className={inputClass} placeholder="Gold Hoop" />
@@ -328,7 +329,8 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                     <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Description</label>
                     <textarea required value={description} onChange={e => setDescription(e.target.value)} className={`${inputClass} resize-none h-20`} placeholder="A seamless, everyday hoop..." />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* 👇 CHANGED TO RESPONSIVE GRID (1 col mobile, 2 col desktop) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Placement</label>
                             <div ref={categoryDropdownRef} className="relative mb-4">
