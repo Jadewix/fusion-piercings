@@ -59,7 +59,7 @@ const COLORS: ColorOption[] = [
   },
   {
     key:         'gold-plated-hoops',
-    label:       'Gold Plated Hoops',
+    label:       '18k Gold Plated',
     description: 'Premium Shine',
     filterKind:  'material_tag',
     filterValue: 'gold-plated-hoops',

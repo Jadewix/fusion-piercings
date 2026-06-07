@@ -1,31 +1,86 @@
 // components/Hero.tsx
+'use client';
+
+import { useEffect, useRef } from 'react';
+import Image from 'next/image';
+
 export default function Hero() {
+  const imageRef = useRef<HTMLDivElement>(null);
+
+  // Subtle parallax driven by rAF — no React re-renders, GPU accelerated.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let raf = 0;
+    let latest = window.scrollY;
+    let ticking = false;
+
+    const apply = () => {
+      const el = imageRef.current;
+      if (el) {
+        const offset = Math.min(latest * 0.3, 220);
+        el.style.transform = `translate3d(0, ${offset}px, 0) scale(1.08)`;
+      }
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      latest = window.scrollY;
+      if (!ticking) {
+        ticking = true;
+        raf = requestAnimationFrame(apply);
+      }
+    };
+
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <section
       id="home"
       className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 sm:px-8 pt-24 pb-20 bg-bg text-center"
     >
-      {/* Subtle radial glow centred behind the content */}
+      {/* Hero image — full-bleed, parallax on scroll, optimised via next/image */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: `radial-gradient(ellipse 65% 65% at 50% 50%, rgba(184,150,90,0.07) 0%, transparent 70%)`,
-        }}
-      />
+        ref={imageRef}
+        className="absolute inset-0 -top-[10%] -bottom-[10%] pointer-events-none will-change-transform"
+        style={{ transform: 'translate3d(0,0,0) scale(1.08)' }}
+        aria-hidden="true"
+      >
+        <Image
+          src="/img/Hero-img.png"
+          alt=""
+          fill
+          priority
+          quality={85}
+          sizes="100vw"
+          className="object-cover object-center select-none"
+        />
+      </div>
 
-      {/* FUSION watermark — the user liked this */}
+      {/* Single seamless gradient — only a whisper of tone at top and bottom edges,
+          nothing in the middle. No bands, no patches. */}
       <div
         aria-hidden="true"
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[clamp(10rem,26vw,28rem)] font-extrabold tracking-[0.06em] leading-none whitespace-nowrap pointer-events-none select-none"
-        style={{ color: 'transparent', WebkitTextStroke: '1px rgba(20,18,15,0.04)' }}
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(20,18,15,0.10) 0%, rgba(20,18,15,0) 18%, rgba(245,242,236,0) 82%, rgba(245,242,236,0.5) 100%)',
+        }}
       />
 
       {/* Main content */}
       <div className="relative z-10 w-full max-w-[740px] mx-auto flex flex-col items-center justify-evenly flex-1 gap-2">
 
         {/* Label */}
-        <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk section-label-line">
-          Est. 2025 — Premium Body Jewelry
+        <span className="inline-flex items-center gap-2.5 text-[0.7rem] font-semibold tracking-[0.22em] uppercase text-ink section-label-line">
+          Est. 2023 — Premium Body Jewelry
         </span>
 
         {/* Logo + divider + tagline group */}
@@ -40,7 +95,7 @@ export default function Hero() {
             <div className="h-px w-14 bg-gradient-to-l from-transparent to-gold/50" />
           </div>
 
-          <p className="text-[clamp(0.88rem,1.4vw,1rem)] text-ink-2 leading-[1.9] font-light max-w-md">
+          <p className="text-[clamp(0.9rem,1.42vw,1.02rem)] text-ink leading-[1.85] font-normal max-w-md">
             At FUSION we turn piercing into a luxury experience, an individualized approach, and unparalleled standards for health and safety.
           </p>
         </div>
@@ -60,23 +115,8 @@ export default function Hero() {
             Book An Appointment
           </a>
         </div>
-
-        {/* Stats */}
-        <div className="flex items-center justify-center divide-x divide-border">
-          {[['10k+','Customers'],['50+','Designs'],['100%','Nickel Free']].map(([n, l]) => (
-            <div key={n} className="flex flex-col items-center px-6 sm:px-10">
-              <span className="text-[1.6rem] font-bold text-ink leading-none">{n}</span>
-              <span className="text-[0.63rem] text-ink-3 tracking-[0.1em] uppercase mt-1.5">{l}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-10 left-4 sm:left-8 flex items-center gap-3 z-10">
-        <span className="text-[0.62rem] tracking-[0.22em] uppercase text-ink-3">Scroll</span>
-        <div className="w-9 h-px" style={{ background: 'linear-gradient(to right,#8A6E3A,transparent)' }} />
-      </div>
     </section>
   );
 }

@@ -6,7 +6,7 @@ import CollectionClient from './CollectionClient';
 const COLLECTIONS: Record<string, { title: string; materialTag: string; showSubcategoryTabs?: boolean }> = {
   'titanium':          { title: 'Titanium',          materialTag: 'titanium',          showSubcategoryTabs: true  },
   'surgical-steel':    { title: 'Surgical Steel',    materialTag: 'surgical-steel',    showSubcategoryTabs: true  },
-  'gold-plated-hoops': { title: 'Gold Plated Hoops', materialTag: 'gold-plated-hoops'                              },
+  'gold-plated-hoops': { title: '18k Gold Plated', materialTag: 'gold-plated-hoops'                              },
 };
 
 interface Props {

@@ -693,8 +693,14 @@ async function initDB() {
         INSERT INTO collections (slug, name, sort_order) VALUES
             ('titanium',          'Titanium',          10),
             ('surgical-steel',    'Surgical Steel',    20),
-            ('gold-plated-hoops', 'Gold Plated Hoops', 30)
+            ('gold-plated-hoops', '18k Gold Plated',   30)
         ON CONFLICT (slug) DO NOTHING
+    `);
+    // Rename: old "Gold Plated Hoops" label → "18k Gold Plated" for any DB
+    // that was seeded before this change. Slug stays stable.
+    await pool.query(`
+        UPDATE collections SET name = '18k Gold Plated'
+        WHERE slug = 'gold-plated-hoops' AND name <> '18k Gold Plated'
     `);
 
     // Create products table if it doesn't exist yet

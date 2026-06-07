@@ -24,7 +24,7 @@ type ShopCategory = {
 const SHOP_CATEGORIES: ShopCategory[] = [
   { label: 'Titanium', href: '/collections/titanium', subcategories: SUBCATEGORIES },
   { label: 'Surgical Steel', href: '/collections/surgical-steel', subcategories: SUBCATEGORIES },
-  { label: 'Gold Plated Hoops', href: '/collections/gold-plated-hoops' },
+  { label: '18k Gold Plated', href: '/collections/gold-plated-hoops' },
 ];
 
 const NAV_LINKS = [
@@ -85,7 +85,7 @@ export default function Nav() {
         <div className="relative max-w-[1280px] mx-auto px-4 sm:px-8 py-5 flex items-center">
 
           <button
-              className="md:hidden p-1.5 rounded-full text-ink-2 hover:text-ink hover:bg-ink/5 transition-all"
+              className="md:hidden p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all"
               onClick={() => setMobileOpen(v => !v)}
               aria-label="Menu"
           >
@@ -113,9 +113,7 @@ export default function Nav() {
                     <li key={label}>
                       <a
                           href={href}
-                          className={`relative text-[0.75rem] font-medium tracking-[0.1em] uppercase hover:text-ink transition-colors duration-200 nav-link-line ${
-                              active ? 'text-ink nav-link-active' : 'text-ink-2'
-                          }`}
+                          className="relative text-[0.75rem] font-medium tracking-[0.1em] uppercase text-ink hover:text-ink transition-colors duration-200"
                       >
                         {label}
                       </a>
@@ -128,9 +126,7 @@ export default function Nav() {
                     <button
                         type="button"
                         aria-haspopup="true"
-                        className={`relative flex items-center gap-1 text-[0.75rem] font-medium tracking-[0.1em] uppercase hover:text-ink transition-colors duration-200 nav-link-line cursor-default ${
-                            active ? 'text-ink nav-link-active' : 'text-ink-2'
-                        }`}
+                        className="relative flex items-center gap-1 text-[0.75rem] font-medium tracking-[0.1em] uppercase text-ink hover:text-ink transition-colors duration-200 cursor-default"
                     >
                       {label}
                       <svg
@@ -152,9 +148,7 @@ export default function Nav() {
                                 <a
                                     key={cat.href}
                                     href={cat.href}
-                                    className={`block px-5 py-2.5 text-[0.72rem] font-medium tracking-[0.1em] uppercase transition-colors hover:bg-ink/5 hover:text-ink ${
-                                        catActive ? 'text-ink' : 'text-ink-2'
-                                    }`}
+                                    className="block px-5 py-2.5 text-[0.72rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors hover:bg-ink/5 hover:text-ink"
                                 >
                                   {cat.label}
                                 </a>
@@ -165,9 +159,7 @@ export default function Nav() {
                               <div key={cat.href} className="relative group/sub">
                                 <a
                                     href={cat.href}
-                                    className={`flex items-center justify-between gap-3 px-5 py-2.5 text-[0.72rem] font-medium tracking-[0.1em] uppercase transition-colors hover:bg-ink/5 hover:text-ink ${
-                                        catActive ? 'text-ink' : 'text-ink-2'
-                                    }`}
+                                    className="flex items-center justify-between gap-3 px-5 py-2.5 text-[0.72rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors hover:bg-ink/5 hover:text-ink"
                                 >
                                   <span>{cat.label}</span>
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -199,13 +191,13 @@ export default function Nav() {
           </ul>
 
           <div className="flex items-center gap-1 ml-auto md:ml-6">
-            <button className="hidden md:flex p-1.5 rounded-full text-ink-2 hover:text-ink hover:bg-ink/5 transition-all" aria-label="Search">
+            <button className="hidden md:flex p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all" aria-label="Search">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
               </svg>
             </button>
 
-            <button onClick={openCart} className="relative p-1.5 rounded-full text-ink-2 hover:text-ink hover:bg-ink/5 transition-all" aria-label="Cart">
+            <button onClick={openCart} className="relative p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all" aria-label="Cart">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
                 <line x1="3" y1="6" x2="21" y2="6"/>
@@ -229,9 +221,7 @@ export default function Nav() {
                           key={label}
                           href={href}
                           onClick={() => setMobileOpen(false)}
-                          className={`block py-3.5 text-[0.8rem] font-medium tracking-[0.1em] uppercase hover:text-gold-dk border-b border-border-lt last:border-b-0 transition-colors ${
-                              isActive(href) ? 'text-gold-dk' : 'text-ink-2'
-                          }`}
+                          className="block py-3.5 text-[0.8rem] font-medium tracking-[0.1em] uppercase text-ink border-b border-border-lt last:border-b-0 transition-colors"
                       >
                         {label}
                       </a>
@@ -242,9 +232,7 @@ export default function Nav() {
                     <div key={label} className="border-b border-border-lt">
                       <button
                           onClick={() => setMobileShopOpen(v => !v)}
-                          className={`w-full flex items-center justify-between py-3.5 text-[0.8rem] font-medium tracking-[0.1em] uppercase transition-colors ${
-                              isShopActive ? 'text-gold-dk' : 'text-ink-2 hover:text-gold-dk'
-                          }`}
+                          className="w-full flex items-center justify-between py-3.5 text-[0.8rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors"
                       >
                         {label}
                         <svg
@@ -265,9 +253,7 @@ export default function Nav() {
                                         key={cat.href}
                                         href={cat.href}
                                         onClick={() => setMobileOpen(false)}
-                                        className={`block py-2.5 text-[0.74rem] font-medium tracking-[0.1em] uppercase transition-colors border-b border-border-lt last:border-b-0 ${
-                                            pathname.startsWith(cat.href) ? 'text-gold-dk' : 'text-ink-2 hover:text-gold-dk'
-                                        }`}
+                                        className="block py-2.5 text-[0.74rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors border-b border-border-lt last:border-b-0"
                                     >
                                       {cat.label}
                                     </a>
@@ -280,9 +266,7 @@ export default function Nav() {
                                     <button
                                         type="button"
                                         onClick={() => setMobileExpandedCat(expanded ? null : cat.href)}
-                                        className={`w-full flex items-center justify-between py-2.5 text-[0.74rem] font-medium tracking-[0.1em] uppercase transition-colors ${
-                                            pathname.startsWith(cat.href) ? 'text-gold-dk' : 'text-ink-2 hover:text-gold-dk'
-                                        }`}
+                                        className="w-full flex items-center justify-between py-2.5 text-[0.74rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors"
                                     >
                                       {cat.label}
                                       <svg
@@ -299,7 +283,7 @@ export default function Nav() {
                                           <a
                                               href={cat.href}
                                               onClick={() => setMobileOpen(false)}
-                                              className="block py-2 text-[0.7rem] font-medium tracking-[0.1em] uppercase text-ink-2 hover:text-gold-dk transition-colors"
+                                              className="block py-2 text-[0.7rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors"
                                           >
                                             All
                                           </a>
@@ -308,7 +292,7 @@ export default function Nav() {
                                                   key={sub.category}
                                                   href={`${cat.href}?category=${sub.category}`}
                                                   onClick={() => setMobileOpen(false)}
-                                                  className="block py-2 text-[0.7rem] font-medium tracking-[0.1em] uppercase text-ink-2 hover:text-gold-dk transition-colors"
+                                                  className="block py-2 text-[0.7rem] font-medium tracking-[0.1em] uppercase text-ink transition-colors"
                                               >
                                                 {sub.label}
                                               </a>
