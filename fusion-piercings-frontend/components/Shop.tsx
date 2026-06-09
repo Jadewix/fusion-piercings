@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Product } from '@/lib/types';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import ProductCard from './ProductCard';
+import Pagination from '@/components/ui/Pagination';
+import { PageMeta } from '@/lib/pagination';
 
 const PLACEMENTS = ['all', 'ear', 'nose', 'belly', 'nipple'];
 const PAGE_SIZE = 20;
@@ -70,14 +72,6 @@ const COLORS: ColorOption[] = [
   },
 ];
 
-interface PageMeta {
-  total: number;
-  page: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-}
-
 interface Props {
   materialTag?: string;
   category?: string;
@@ -85,18 +79,6 @@ interface Props {
   title?: string;
   eyebrow?: string;
   hideHeader?: boolean;
-}
-
-function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | 'ellipsis')[] = [1];
-  if (current > 3) pages.push('ellipsis');
-  const start = Math.max(2, current - 1);
-  const end   = Math.min(total - 1, current + 1);
-  for (let i = start; i <= end; i++) pages.push(i);
-  if (current < total - 2) pages.push('ellipsis');
-  pages.push(total);
-  return pages;
 }
 
 function SkeletonCard() {
@@ -325,57 +307,17 @@ export default function Shop({
                   ))}
                 </div>
 
-                {meta && meta.totalPages > 1 && (
-                    <nav
-                        className="flex items-center justify-center gap-1.5 mt-14"
-                        aria-label="Pagination"
-                    >
-                      <button
-                          onClick={() => goToPage(page - 1)}
-                          disabled={!meta.hasPrevPage || loading}
-                          className="flex items-center gap-1 px-3 h-9 text-[0.72rem] font-medium tracking-[0.08em] uppercase rounded-sm border border-border text-ink-2 hover:border-ink hover:text-ink transition-all disabled:opacity-40 disabled:pointer-events-none"
-                          aria-label="Previous page"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-                        <span className="hidden sm:inline">Prev</span>
-                      </button>
-
-                      {getPageNumbers(page, meta.totalPages).map((p, i) =>
-                          p === 'ellipsis' ? (
-                              <span key={`e${i}`} className="w-9 h-9 flex items-center justify-center text-ink-3 text-sm select-none">…</span>
-                          ) : (
-                              <button
-                                  key={p}
-                                  onClick={() => goToPage(p)}
-                                  disabled={loading}
-                                  aria-current={p === page ? 'page' : undefined}
-                                  className={`w-9 h-9 text-[0.78rem] font-medium rounded-sm border transition-all disabled:pointer-events-none ${
-                                      p === page
-                                          ? 'bg-ink border-ink text-bg'
-                                          : 'bg-transparent border-border text-ink-2 hover:border-ink hover:text-ink'
-                                  }`}
-                              >
-                                {p}
-                              </button>
-                          )
-                      )}
-
-                      <button
-                          onClick={() => goToPage(page + 1)}
-                          disabled={!meta.hasNextPage || loading}
-                          className="flex items-center gap-1 px-3 h-9 text-[0.72rem] font-medium tracking-[0.08em] uppercase rounded-sm border border-border text-ink-2 hover:border-ink hover:text-ink transition-all disabled:opacity-40 disabled:pointer-events-none"
-                          aria-label="Next page"
-                      >
-                        <span className="hidden sm:inline">Next</span>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-                      </button>
-                    </nav>
-                )}
-
                 {meta && (
-                    <p className="text-center text-[0.72rem] text-ink-3 mt-5">
-                      Showing {(meta.page - 1) * PAGE_SIZE + 1}–{Math.min(meta.page * PAGE_SIZE, meta.total)} of {meta.total}
-                    </p>
+                    <Pagination
+                        page={meta.page}
+                        totalPages={meta.totalPages}
+                        hasPrevPage={meta.hasPrevPage}
+                        hasNextPage={meta.hasNextPage}
+                        onPageChange={goToPage}
+                        loading={loading}
+                        total={meta.total}
+                        pageSize={PAGE_SIZE}
+                    />
                 )}
               </>
           )}

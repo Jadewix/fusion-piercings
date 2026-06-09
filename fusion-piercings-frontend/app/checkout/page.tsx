@@ -1,7 +1,7 @@
 // app/checkout/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
@@ -25,6 +25,14 @@ export default function CheckoutPage() {
     const [orderId, setOrderId] = useState<number | null>(null);
     const [error, setError] = useState('');
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
+
+    // Idempotency key: stable across retries of the same checkout attempt so the
+    // server can dedupe duplicate submissions; regenerated after a successful order.
+    const idempotencyKeyRef = useRef<string | null>(null);
+    const getIdempotencyKey = () => {
+        if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
+        return idempotencyKeyRef.current;
+    };
 
     // Formatting helpers
 
@@ -72,7 +80,10 @@ export default function CheckoutPage() {
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/orders`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': getIdempotencyKey(),
+                },
                 body: JSON.stringify({
                     ...formData,
                     items: cart,
@@ -93,6 +104,8 @@ export default function CheckoutPage() {
             setOrderId(data.orderId);
             clearCart();
             setIsSuccess(true);
+            // Start a fresh key so any future order in this session isn't deduped.
+            idempotencyKeyRef.current = null;
         } catch (err: any) {
             setError(err.message || 'Something went wrong. Please try again.');
         } finally {

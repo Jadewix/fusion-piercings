@@ -6,6 +6,11 @@ import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
 import ShopSection from '@/components/ShopSection';
 import Toast from '@/components/Toast';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 // Server component: Hero, TrustBar, Values and Footer are now rendered on the
 // server (SSR/SSG). Only the interactive islands (Nav, CartDrawer, ShopSection,

@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const sharp = require('sharp');
+const rateLimit = require('express-rate-limit');
 
 // --- NEW BREVO EMAIL SETUP ---
 // We use native fetch to bypass Render's strict SMTP firewall.
@@ -37,6 +38,36 @@ async function sendBrevoEmail(toEmail, toName, subject, htmlContent) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Render (and most PaaS) run the app behind a reverse proxy. Trust the first
+// proxy hop so express-rate-limit sees the real client IP via X-Forwarded-For.
+app.set('trust proxy', 1);
+
+// --- Rate limiters for abuse-prone POST endpoints. These intentionally do NOT
+//     touch GET browsing / server-side rendering traffic. ---
+const orderLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 8,                   // max order placements per IP per window
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many orders from this device. Please wait a few minutes and try again.' },
+});
+
+const authLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,  // 5 minutes
+    max: 10,                  // slow down admin-password brute force
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
+});
+
+const contactLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 5,                   // limit contact-form spam
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many messages from this device. Please try again later.' },
+});
 
 // 1. Initialize PostgreSQL
 const pool = new Pool({
@@ -464,7 +495,7 @@ app.get('/api/admin/inventory', async (req, res) => {
     }
 });
 
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', contactLimiter, async (req, res) => {
     const { name, email, phone, message } = req.body;
     if (!name || !email || !message) return res.status(400).json({ error: 'Name, email and message are required' });
     try {
@@ -492,16 +523,45 @@ app.post('/api/contact', async (req, res) => {
     }
 });
 
-app.post('/api/admin/auth', (req, res) => {
+app.post('/api/admin/auth', authLimiter, (req, res) => {
     const { password } = req.body;
     if (!password || password !== process.env.ADMIN_PASSWORD) return res.status(401).json({ error: 'Incorrect password' });
     res.status(200).json({ ok: true });
 });
 
 app.get('/api/admin/orders', async (req, res) => {
+    // --- Parse & sanitize pagination params (mirrors /api/products) ---
+    let page  = parseInt(req.query.page, 10);
+    let limit = parseInt(req.query.limit, 10);
+    if (!Number.isFinite(page)  || page  < 1) page  = 1;
+    if (!Number.isFinite(limit) || limit < 1) limit = 20;
+    if (limit > 100) limit = 100; // safety cap so a client can't request the whole table
+
     try {
-        const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
-        res.status(200).json(result.rows);
+        // 1. Total rows (for pagination metadata)
+        const countResult = await pool.query('SELECT COUNT(*) FROM orders');
+        const total = parseInt(countResult.rows[0].count, 10);
+
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        // Clamp the requested page into a valid range
+        if (page > totalPages) page = totalPages;
+        const offset = (page - 1) * limit;
+
+        // 2. Page of rows — newest first (id as a stable tiebreaker for equal timestamps)
+        const dataResult = await pool.query(
+            'SELECT * FROM orders ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2',
+            [limit, offset]
+        );
+
+        res.status(200).json({
+            orders: dataResult.rows,
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        });
     } catch (error) {
         console.error('Error fetching orders:', error);
         res.status(500).json({ error: 'Failed to fetch orders' });
@@ -524,18 +584,54 @@ app.patch('/api/admin/orders/:id/status', async (req, res) => {
 });
 
 // --- THE ONE AND ONLY CHECKOUT ROUTE ---
-app.post('/api/orders', async (req, res) => {
+app.post('/api/orders', orderLimiter, async (req, res) => {
     const { firstName, lastName, email, phone, city, address, building, items, subtotal, deliveryFee, total } = req.body;
+    const idempotencyKey = req.get('Idempotency-Key') || null;
+
+    // --- Basic validation ---
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Your cart is empty.' });
+    }
+    if (!firstName || !lastName || !phone || !city || !address) {
+        return res.status(400).json({ error: 'Missing required delivery information.' });
+    }
 
     try {
-        // 1. Insert into database
-        const result = await pool.query(
-            `INSERT INTO orders 
-             (first_name, last_name, email, phone, city, address, building, items, subtotal, delivery_fee, total_amount) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-             RETURNING *`,
-            [firstName, lastName, email, phone, city, address, building, JSON.stringify(items), subtotal, deliveryFee, total]
+        // 1a. Idempotency: if this exact submission was already saved, return it (no duplicate).
+        if (idempotencyKey) {
+            const seen = await pool.query('SELECT id FROM orders WHERE idempotency_key = $1', [idempotencyKey]);
+            if (seen.rows.length > 0) {
+                return res.status(200).json({ message: 'Order already placed', orderId: seen.rows[0].id });
+            }
+        }
+
+        // 1b. Content-window dedup: same phone + total within 90s catches accidental
+        //     re-submits (e.g. two browser tabs) where the idempotency key differs.
+        const recent = await pool.query(
+            `SELECT id FROM orders
+             WHERE phone = $1 AND total_amount = $2 AND created_at > NOW() - INTERVAL '90 seconds'
+             ORDER BY created_at DESC LIMIT 1`,
+            [phone, total]
         );
+        if (recent.rows.length > 0) {
+            return res.status(200).json({ message: 'Order already placed', orderId: recent.rows[0].id });
+        }
+
+        // 1c. Insert. ON CONFLICT guards against a race between two requests sharing a key.
+        const result = await pool.query(
+            `INSERT INTO orders
+             (first_name, last_name, email, phone, city, address, building, items, subtotal, delivery_fee, total_amount, idempotency_key)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (idempotency_key) DO NOTHING
+             RETURNING *`,
+            [firstName, lastName, email, phone, city, address, building, JSON.stringify(items), subtotal, deliveryFee, total, idempotencyKey]
+        );
+
+        // ON CONFLICT skipped the insert → a concurrent request already used this key.
+        if (result.rows.length === 0) {
+            const seen = await pool.query('SELECT id FROM orders WHERE idempotency_key = $1', [idempotencyKey]);
+            return res.status(200).json({ message: 'Order already placed', orderId: seen.rows[0]?.id });
+        }
 
         const newOrder = result.rows[0];
 
@@ -668,6 +764,14 @@ async function initDB() {
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    // Idempotency support for duplicate-order prevention (safe to run repeatedly).
+    // Wrapped so this enhancement can never block the server from starting.
+    try {
+        await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT`);
+        await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_key_uniq ON orders (idempotency_key)`);
+    } catch (e) {
+        console.error('Idempotency migration skipped (non-fatal):', e.message);
+    }
     await pool.query(`
         CREATE TABLE IF NOT EXISTS contact_messages (
             id         SERIAL PRIMARY KEY,

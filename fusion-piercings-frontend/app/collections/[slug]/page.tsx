@@ -1,6 +1,9 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import JsonLd from '@/components/seo/JsonLd';
+import { breadcrumbSchema } from '@/lib/seo';
+import { SITE_URL } from '@/lib/site';
 import CollectionClient from './CollectionClient';
 
 const COLLECTIONS: Record<string, { title: string; materialTag: string; showSubcategoryTabs?: boolean }> = {
@@ -17,8 +20,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const collection = COLLECTIONS[params.slug];
   if (!collection) return {};
   return {
-    title: `${collection.title} — Fusion Piercings`,
+    title: collection.title,
     description: `Shop our ${collection.title} collection. Premium body jewelry crafted for every expression.`,
+    alternates: { canonical: `/collections/${params.slug}` },
+    openGraph: {
+      title: `${collection.title} — Fusion Piercings`,
+      description: `Shop our ${collection.title} collection of premium body jewelry.`,
+      url: `${SITE_URL}/collections/${params.slug}`,
+    },
   };
 }
 
@@ -30,14 +39,22 @@ export default function CollectionPage({ params }: Props) {
   const collection = COLLECTIONS[params.slug];
   if (!collection) notFound();
   return (
-    // useSearchParams() inside CollectionClient requires a Suspense boundary
-    // for Next 14's static prerender to succeed.
-    <Suspense fallback={null}>
-      <CollectionClient
-        title={collection.title}
-        materialTag={collection.materialTag}
-        showSubcategoryTabs={collection.showSubcategoryTabs}
+    <>
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', url: SITE_URL },
+          { name: collection.title, url: `${SITE_URL}/collections/${params.slug}` },
+        ])}
       />
-    </Suspense>
+      {/* useSearchParams() inside CollectionClient requires a Suspense boundary
+          for Next 14's static prerender to succeed. */}
+      <Suspense fallback={null}>
+        <CollectionClient
+          title={collection.title}
+          materialTag={collection.materialTag}
+          showSubcategoryTabs={collection.showSubcategoryTabs}
+        />
+      </Suspense>
+    </>
   );
 }

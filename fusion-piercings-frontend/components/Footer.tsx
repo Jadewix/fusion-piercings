@@ -1,3 +1,6 @@
+import Link from 'next/link';
+import { BUSINESS } from '@/lib/business';
+
 export default function Footer() {
   return (
     <footer className="bg-ink py-8">
@@ -31,8 +34,19 @@ export default function Footer() {
           </a>
         </div>
 
-        {/* Copyright + credit */}
+        {/* Legal links */}
+        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="Legal">
+          <Link href="/privacy" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Privacy Policy</Link>
+          <Link href="/terms" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Terms of Service</Link>
+          <Link href="/returns" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Returns &amp; Refunds</Link>
+          <Link href="/shipping" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Shipping &amp; Delivery</Link>
+        </nav>
+
+        {/* Location + copyright */}
         <div className="flex flex-col items-center sm:items-end gap-1">
+          <p className="text-[0.72rem] text-white/45 font-light">
+            {BUSINESS.locality}, {BUSINESS.regionLabel}
+          </p>
           <p className="text-[0.72rem] text-white/25 font-light">
             &copy; 2026 Fusion Piercings. All rights reserved.
           </p>
