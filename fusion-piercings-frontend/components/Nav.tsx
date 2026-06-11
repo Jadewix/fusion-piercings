@@ -104,16 +104,16 @@ export default function Nav() {
             <img src="/img/Fusion-logo-svg.svg" alt="Fusion Piercings" className="h-8 sm:h-9 w-auto" />
           </Link>
 
-          <ul className="hidden md:flex gap-10 absolute left-1/2 -translate-x-1/2">
+          <ul className="hidden md:flex items-center gap-10 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             {NAV_LINKS.map(({ label, href, hasDropdown }) => {
               const active = hasDropdown ? isShopActive : isActive(href);
 
               if (!hasDropdown) {
                 return (
-                    <li key={label}>
+                    <li key={label} className="flex items-center">
                       <a
                           href={href}
-                          className="relative text-[0.75rem] font-medium tracking-[0.1em] uppercase text-ink hover:text-ink transition-colors duration-200"
+                          className="relative inline-flex items-center leading-none text-[0.75rem] font-medium tracking-[0.1em] uppercase text-ink hover:text-ink transition-colors duration-200"
                       >
                         {label}
                       </a>
@@ -122,11 +122,11 @@ export default function Nav() {
               }
 
               return (
-                  <li key={label} className="relative group">
+                  <li key={label} className="relative group flex items-center">
                     <button
                         type="button"
                         aria-haspopup="true"
-                        className="relative flex items-center gap-1 text-[0.75rem] font-medium tracking-[0.1em] uppercase text-ink hover:text-ink transition-colors duration-200 cursor-default"
+                        className="relative inline-flex items-center gap-1 leading-none text-[0.75rem] font-medium tracking-[0.1em] uppercase text-ink hover:text-ink transition-colors duration-200 cursor-default"
                     >
                       {label}
                       <svg
