@@ -102,6 +102,15 @@ export default function ProductDetailClient({ productId }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [images.length]);
 
+  // Show the floating Back pill once the user has scrolled past the inline one.
+  const [showFloatBack, setShowFloatBack] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowFloatBack(window.scrollY > 180);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   if (loading) {
     return (
         <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-24 text-center">
@@ -153,11 +162,28 @@ export default function ProductDetailClient({ productId }: Props) {
 
   return (
       <div className="max-w-[1100px] mx-auto px-4 sm:px-8 py-10 sm:py-14">
+        {/* Inline Back — sits in the natural reading flow */}
         <Link
             href="/#shop"
             className="inline-flex items-center gap-1.5 text-[0.7rem] font-medium tracking-[0.12em] uppercase text-ink-3 hover:text-ink transition-colors mb-8"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+          Back
+        </Link>
+
+        {/* Floating Back — appears once the inline one has scrolled off */}
+        <Link
+            href="/#shop"
+            aria-label="Back to shop"
+            className={`fixed top-[78px] sm:top-[88px] left-3 sm:left-6 z-[850] inline-flex items-center gap-1.5 bg-bg-card/85 backdrop-blur-md text-ink px-3.5 py-2 rounded-full shadow-md border border-border-lt text-[0.7rem] font-semibold tracking-[0.12em] uppercase hover:bg-bg-card hover:shadow-lg transition-all duration-300 ease-out ${
+              showFloatBack
+                ? 'opacity-100 translate-y-0 pointer-events-auto'
+                : 'opacity-0 -translate-y-2 pointer-events-none'
+            }`}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M15 18l-6-6 6-6"/>
           </svg>
           Back

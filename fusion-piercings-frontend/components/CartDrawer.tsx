@@ -118,7 +118,7 @@ export default function CartDrawer() {
                   >
                       Proceed to Checkout
                   </Link>
-                <p className="text-[0.68rem] text-ink-3 text-center">Free shipping over $75 · 30-day returns</p>
+                <p className="text-[0.68rem] text-ink-3 text-center">Free shipping over $75</p>
               </div>
           )}
         </aside>

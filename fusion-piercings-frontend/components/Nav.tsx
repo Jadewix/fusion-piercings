@@ -24,7 +24,7 @@ type ShopCategory = {
 const SHOP_CATEGORIES: ShopCategory[] = [
   { label: 'Titanium', href: '/collections/titanium', subcategories: SUBCATEGORIES },
   { label: 'Surgical Steel', href: '/collections/surgical-steel', subcategories: SUBCATEGORIES },
-  { label: '18k Gold Plated', href: '/collections/gold-plated-hoops' },
+  { label: '18k Gold Plated', href: '/collections/gold-plated-hoops', subcategories: SUBCATEGORIES },
 ];
 
 const NAV_LINKS = [
@@ -99,12 +99,12 @@ export default function Nav() {
           <Link
               href="/"
               aria-label="Fusion Piercings — home"
-              className="flex-shrink-0 absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 md:mr-auto"
+              className="flex-shrink-0 absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0"
           >
             <img src="/img/Fusion-logo-svg.svg" alt="Fusion Piercings" className="h-8 sm:h-9 w-auto" />
           </Link>
 
-          <ul className="hidden md:flex gap-10 ml-auto">
+          <ul className="hidden md:flex gap-10 absolute left-1/2 -translate-x-1/2">
             {NAV_LINKS.map(({ label, href, hasDropdown }) => {
               const active = hasDropdown ? isShopActive : isActive(href);
 
@@ -190,7 +190,7 @@ export default function Nav() {
             })}
           </ul>
 
-          <div className="flex items-center gap-1 ml-auto md:ml-6">
+          <div className="flex items-center gap-1 ml-auto">
             <button className="hidden md:flex p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all" aria-label="Search">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>

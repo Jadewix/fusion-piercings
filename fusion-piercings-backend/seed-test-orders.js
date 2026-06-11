@@ -40,9 +40,9 @@ const SIZES  = ['6mm', '8mm', '10mm', 'One Size'];
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-async function seed() {
+async function seed(count = 100) {
   let inserted = 0;
-  for (let i = 1; i <= 100; i++) {
+  for (let i = 1; i <= count; i++) {
     const itemCount = randInt(1, 3);
     const items = [];
     let subtotal = 0;
@@ -142,7 +142,8 @@ async function count() {
     } else if (process.argv.includes('--redate')) {
       await redate();
     } else {
-      await seed();
+      const countArg = process.argv.find(a => /^\d+$/.test(a));
+      await seed(countArg ? parseInt(countArg, 10) : 100);
     }
   } catch (e) {
     console.error('Seed error:', e.message);

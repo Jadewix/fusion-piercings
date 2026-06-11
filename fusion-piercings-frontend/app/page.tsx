@@ -1,7 +1,6 @@
 import Nav from '@/components/Nav';
 import Hero from '@/components/Hero';
 import TrustBar from '@/components/TrustBar';
-import Values from '@/components/Values';
 import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
 import ShopSection from '@/components/ShopSection';
@@ -12,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 };
 
-// Server component: Hero, TrustBar, Values and Footer are now rendered on the
+// Server component: Hero, TrustBar and Footer are now rendered on the
 // server (SSR/SSG). Only the interactive islands (Nav, CartDrawer, ShopSection,
 // Toast) hydrate on the client.
 export default function Home() {
@@ -25,7 +24,6 @@ export default function Home() {
         <Hero />
         <TrustBar />
         <ShopSection />
-        <Values />
       </main>
 
       <Footer />

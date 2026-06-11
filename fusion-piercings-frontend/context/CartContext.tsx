@@ -94,8 +94,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         qty: 1
       },
     });
-    showToast(`${product.name} added`);
-    setIsCartOpen(true);
+    showToast(`${product.name} added to cart`);
   }, [showToast]);
 
   const removeFromCart = useCallback((cartKey: string) => dispatch({ type: 'REMOVE', cartKey }), []);

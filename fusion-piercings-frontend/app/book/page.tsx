@@ -7,6 +7,7 @@ import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
 import DateTimePicker from '@/components/DateTimePicker';
+import { LOCATIONS } from '@/lib/business';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -36,13 +37,14 @@ export default function BookAppointmentPage() {
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
+        location: '',
         piercingType: '',
         otherPiercing: '',
         notes: '',
     });
     const [dateTime, setDateTime] = useState<Date | null>(null);
 
-    const [fieldErrors, setFieldErrors] = useState<{ phone?: string; name?: string; piercingType?: string; dateTime?: string }>({});
+    const [fieldErrors, setFieldErrors] = useState<{ phone?: string; name?: string; location?: string; piercingType?: string; dateTime?: string }>({});
     const [submitted, setSubmitted] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -76,6 +78,7 @@ export default function BookAppointmentPage() {
         const errors: typeof fieldErrors = {};
         if (!formData.name.trim()) errors.name = 'Please enter your name';
         if (!isValidPhone(formData.phone)) errors.phone = 'Please enter a valid phone number';
+        if (!formData.location) errors.location = 'Please select a location';
         if (!formData.piercingType) errors.piercingType = 'Please select a piercing type';
         if (formData.piercingType === 'Other' && !formData.otherPiercing.trim()) errors.piercingType = 'Please specify your piercing type';
         if (!dateTime) errors.dateTime = 'Please select a date and time';
@@ -89,11 +92,17 @@ export default function BookAppointmentPage() {
         const formattedDate = format(dateTime!, 'EEEE, MMMM d, yyyy');
         const formattedTime = format(dateTime!, 'h:mm a');
 
+        const selectedLocation = LOCATIONS.find(l => l.value === formData.location);
+        const locationDisplay = selectedLocation
+            ? `${selectedLocation.label}, ${selectedLocation.region}`
+            : formData.location;
+
         const message = [
             `Hi! I'd like to book an appointment.`,
             ``,
             `*Name:* ${formData.name}`,
             `*Phone:* ${formData.phone}`,
+            `*Location:* ${locationDisplay}`,
             `*Piercing:* ${formData.piercingType === 'Other' ? formData.otherPiercing : formData.piercingType}`,
             `*Preferred Date:* ${formattedDate}`,
             `*Preferred Time:* ${formattedTime}`,
@@ -165,7 +174,7 @@ export default function BookAppointmentPage() {
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                     <button
-                                        onClick={() => { setSubmitted(false); setFormData({ name: '', phone: '', piercingType: '', otherPiercing: '', notes: '' }); setDateTime(null); }}
+                                        onClick={() => { setSubmitted(false); setFormData({ name: '', phone: '', location: '', piercingType: '', otherPiercing: '', notes: '' }); setDateTime(null); }}
                                         className="px-8 py-3 text-[0.76rem] font-semibold tracking-[0.12em] uppercase border border-ink text-ink rounded-sm hover:bg-ink hover:text-bg transition-all"
                                     >
                                         Book Another
@@ -222,6 +231,64 @@ export default function BookAppointmentPage() {
                                 <h2 className="text-[0.7rem] font-semibold tracking-[0.16em] uppercase text-ink-3 mb-6 mt-8 border-b border-border-lt pb-3">
                                     Appointment Details
                                 </h2>
+
+                                {/* Location */}
+                                <div className="mb-5">
+                                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">
+                                        Location
+                                    </label>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger
+                                            className={`w-full flex items-center justify-between bg-transparent border rounded-sm px-4 py-3 text-[0.85rem] text-left transition-colors cursor-pointer ${
+                                                fieldErrors.location
+                                                    ? 'border-red-400'
+                                                    : 'border-border-lt focus:border-ink'
+                                            } ${formData.location ? 'text-ink' : 'text-ink-3'}`}
+                                        >
+                                            <span>
+                                                {formData.location
+                                                    ? (() => {
+                                                        const loc = LOCATIONS.find(l => l.value === formData.location);
+                                                        return loc ? `${loc.label}, ${loc.region}` : 'Select a location';
+                                                    })()
+                                                    : 'Select a location'}
+                                            </span>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-ink-3 flex-shrink-0">
+                                                <path d="M6 9l6 6 6-6"/>
+                                            </svg>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-bg-card border-border-lt shadow-md" align="start">
+                                            <DropdownMenuLabel className="text-[0.65rem] font-semibold tracking-[0.14em] uppercase text-ink-3">
+                                                Choose a studio
+                                            </DropdownMenuLabel>
+                                            <DropdownMenuSeparator className="bg-border-lt" />
+                                            <DropdownMenuGroup>
+                                                {LOCATIONS.map(loc => (
+                                                    <DropdownMenuItem
+                                                        key={loc.value}
+                                                        onClick={() => {
+                                                            setFormData(f => ({ ...f, location: loc.value }));
+                                                            if (fieldErrors.location) setFieldErrors(f => ({ ...f, location: undefined }));
+                                                        }}
+                                                        className={`text-[0.82rem] cursor-pointer rounded-sm transition-colors ${
+                                                            formData.location === loc.value
+                                                                ? 'bg-ink text-bg focus:bg-ink focus:text-bg'
+                                                                : 'text-ink hover:bg-ink/5 focus:bg-ink/5'
+                                                        }`}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span>{loc.label}</span>
+                                                            <span className={`text-[0.7rem] ${formData.location === loc.value ? 'text-bg/70' : 'text-ink-3'}`}>
+                                                                {loc.region}
+                                                            </span>
+                                                        </div>
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuGroup>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    {fieldErrors.location && <p className="text-red-500 text-[0.72rem] mt-1.5">{fieldErrors.location}</p>}
+                                </div>
 
                                 {/* Piercing Type */}
                                 <div className="mb-5">

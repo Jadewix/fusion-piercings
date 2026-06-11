@@ -42,6 +42,19 @@ export const BUSINESS = {
   tiktok:    'https://www.tiktok.com/@rita.sayde',
 };
 
+/**
+ * Studio locations available for in-person appointments. Used by the booking
+ * form dropdown and the footer. The first entry is treated as the primary
+ * studio (matches BUSINESS.locality above) for SEO/JSON-LD purposes.
+ */
+export const LOCATIONS = [
+  { value: 'zgharta', label: 'Zgharta', region: 'North Lebanon' },
+  { value: 'batroun', label: 'Batroun', region: 'North Lebanon' },
+  { value: 'adma',    label: 'Adma',    region: 'Mount Lebanon' },
+] as const;
+
+export type LocationValue = typeof LOCATIONS[number]['value'];
+
 /** True once a placeholder has been replaced with a real value. */
 export const isFilled = (v?: string): boolean => !!v && !v.trim().startsWith('[');
 

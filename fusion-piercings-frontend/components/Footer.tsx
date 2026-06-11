@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BUSINESS } from '@/lib/business';
+import { BUSINESS, LOCATIONS } from '@/lib/business';
 
 export default function Footer() {
   return (
@@ -42,12 +42,44 @@ export default function Footer() {
           <Link href="/shipping" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Shipping &amp; Delivery</Link>
         </nav>
 
-        {/* Location + copyright */}
-        <div className="flex flex-col items-center sm:items-end gap-1">
-          <p className="text-[0.72rem] text-white/45 font-light">
-            {BUSINESS.locality}, {BUSINESS.regionLabel}
+        {/* Locations + copyright */}
+        <div className="flex flex-col items-center sm:items-end gap-2 sm:gap-1 w-full sm:w-auto">
+
+          {/* Mobile: stacked with location pin icons. The ul itself sizes to its widest
+              row (inherits items-center from parent so it's centered as a block),
+              while items-start keeps every row's icon and text on the same x. */}
+          <ul className="flex flex-col items-start gap-1.5 sm:hidden">
+            {LOCATIONS.map(loc => (
+              <li key={loc.value} className="flex items-center gap-2 text-[0.72rem] text-white/45 font-light">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="text-white/40 flex-shrink-0"
+                  aria-hidden="true"
+                >
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span>{loc.label}, {loc.region}</span>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop: inline with · separators */}
+          <p className="hidden sm:block text-[0.72rem] text-white/45 font-light text-right">
+            {LOCATIONS.map((loc, i) => (
+              <span key={loc.value}>
+                {loc.label}, {loc.region}
+                {i < LOCATIONS.length - 1 && <span className="mx-2 text-white/25">·</span>}
+              </span>
+            ))}
           </p>
-          <p className="text-[0.72rem] text-white/25 font-light">
+
+          <p className="text-[0.72rem] text-white/25 font-light mt-1 sm:mt-0">
             &copy; 2026 Fusion Piercings. All rights reserved.
           </p>
           <p className="text-[0.65rem] text-white/15 font-light">
