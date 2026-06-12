@@ -31,7 +31,7 @@ function coerceSizes(raw: unknown): ProductSize[] {
 function coerceGemSizes(raw: unknown): ProductGemSize[] {
     if (!Array.isArray(raw)) return [];
     return raw
-        .map((g: any) => {
+        .map((g: any): ProductGemSize | null => {
             if (typeof g === 'string') return { gem_size: g, in_stock: true, price: null };
             if (!g || g.gem_size == null) return null;
             const rawPrice = g.price;
