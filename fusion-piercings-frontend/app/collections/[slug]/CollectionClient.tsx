@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Nav from '@/components/Nav';
 import CartDrawer from '@/components/CartDrawer';
 import Footer from '@/components/Footer';
@@ -24,6 +24,8 @@ const SUBCATEGORIES = [
 
 export default function CollectionClient({ title, materialTag, showSubcategoryTabs }: Props) {
   const searchParams = useSearchParams();
+  const router       = useRouter();
+  const pathname     = usePathname();
   const urlCategory  = searchParams?.get('category') ?? 'all';
   const [subcategory, setSubcategory]   = useState<string>(urlCategory);
 
@@ -31,6 +33,18 @@ export default function CollectionClient({ title, materialTag, showSubcategoryTa
   useEffect(() => {
     setSubcategory(urlCategory);
   }, [urlCategory]);
+
+  // Keep the selected tab in the URL (replace, not push — tab switching
+  // shouldn't pile up history entries). This way, coming back from a product
+  // page restores the exact tab the user was on.
+  const selectCategory = (value: string) => {
+    setSubcategory(value);
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    if (value === 'all') params.delete('category');
+    else params.set('category', value);
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
 
   return (
     <>
@@ -60,7 +74,7 @@ export default function CollectionClient({ title, materialTag, showSubcategoryTa
               {SUBCATEGORIES.map(cat => (
                 <button
                   key={cat.value}
-                  onClick={() => setSubcategory(cat.value)}
+                  onClick={() => selectCategory(cat.value)}
                   className={`px-5 py-1.5 text-[0.72rem] font-medium tracking-[0.1em] uppercase rounded-full border transition-all duration-200 ${
                     subcategory === cat.value
                       ? 'bg-ink border-ink text-bg'

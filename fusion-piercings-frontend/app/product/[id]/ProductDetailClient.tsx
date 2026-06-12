@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Product, ProductSize, ProductGemSize, ProductColor } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { COLOR_DOT_GRADIENT, COLOR_LABELS } from '@/lib/products';
@@ -66,6 +67,27 @@ function coerceSizes(raw: unknown): ProductSize[] {
 
 export default function ProductDetailClient({ productId }: Props) {
   const { addToCart } = useCart();
+  const router = useRouter();
+
+  // Go back to wherever the user came from (collection page, filtered shop,
+  // specific pagination page). Falls back to /#shop only when the product page
+  // was opened directly (shared link, new tab) and there is no in-app history.
+  const goBack = (e: React.MouseEvent) => {
+    // Preserve default behavior for new-tab/middle-click style interactions
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    let cameFromSite = false;
+    try {
+      cameFromSite =
+          sessionStorage.getItem('fp_internal_nav') === '1' ||
+          (!!document.referrer && new URL(document.referrer).origin === window.location.origin);
+    } catch { /* ignore */ }
+    if (cameFromSite || window.history.length > 2) {
+      router.back();
+    } else {
+      router.push('/#shop');
+    }
+  };
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -203,6 +225,7 @@ export default function ProductDetailClient({ productId }: Props) {
         {/* Inline Back — sits in the natural reading flow */}
         <Link
             href="/#shop"
+            onClick={goBack}
             className="inline-flex items-center gap-1.5 text-[0.7rem] font-medium tracking-[0.12em] uppercase text-ink-3 hover:text-ink transition-colors mb-8"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -214,6 +237,7 @@ export default function ProductDetailClient({ productId }: Props) {
         {/* Floating Back — appears once the inline one has scrolled off */}
         <Link
             href="/#shop"
+            onClick={goBack}
             aria-label="Back to shop"
             className={`fixed top-[78px] sm:top-[88px] left-3 sm:left-6 z-[850] inline-flex items-center gap-1.5 bg-bg-card/85 backdrop-blur-md text-ink px-3.5 py-2 rounded-full shadow-md border border-border-lt text-[0.7rem] font-semibold tracking-[0.12em] uppercase hover:bg-bg-card hover:shadow-lg transition-all duration-300 ease-out ${
               showFloatBack

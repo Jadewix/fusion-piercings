@@ -6,9 +6,12 @@ import { COLOR_DOT_GRADIENT, COLOR_LABELS } from '@/lib/products';
 
 interface Props {
   product: Product;
+  /** Called just before navigating to the product page, so the parent can
+   *  snapshot its browsing context (filters, page, scroll) for back-navigation. */
+  onNavigate?: () => void;
 }
 
-export default function ProductCard({ product }: Props) {
+export default function ProductCard({ product, onNavigate }: Props) {
   const formattedPrice = Number(product.price).toFixed(2);
   const colorType      = product.color    || 'gold';
   const categoryName   = product.category || 'Collection';
@@ -17,6 +20,7 @@ export default function ProductCard({ product }: Props) {
   return (
       <Link
           href={`/product/${product.id}`}
+          onClick={onNavigate}
           aria-label={`View ${product.name}`}
           className="bg-bg-card border border-border-lt rounded-sm shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-border transition-all duration-300 overflow-hidden group flex flex-col"
       >

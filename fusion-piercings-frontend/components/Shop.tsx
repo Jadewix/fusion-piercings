@@ -117,6 +117,54 @@ export default function Shop({
   const isOnline = useOnlineStatus();
   const sectionRef = useRef<HTMLElement>(null);
 
+  // ── Back-navigation context ──────────────────────────────────────────
+  // When the user clicks into a product, we snapshot the current filters,
+  // page, and scroll position (keyed by URL). When they come back — via the
+  // browser Back button or the product page's Back button — we restore all
+  // of it so they land exactly where they left off.
+  const [pendingScroll, setPendingScroll] = useState<number | null>(null);
+
+  const saveContext = () => {
+    try {
+      const key = `fp_shop_ctx:${window.location.pathname}${window.location.search}`;
+      sessionStorage.setItem(key, JSON.stringify({
+        color: activeColor,
+        category: activeCategory,
+        page,
+        scrollY: window.scrollY,
+      }));
+      sessionStorage.setItem('fp_internal_nav', '1');
+    } catch { /* sessionStorage unavailable — back will just land at the top */ }
+  };
+
+  // Restore must be declared BEFORE the fetch effect: it updates state in the
+  // same commit, and the fetch effect's AbortController cancels the stale
+  // default-state request when the restored state triggers a refetch.
+  useEffect(() => {
+    try {
+      const key = `fp_shop_ctx:${window.location.pathname}${window.location.search}`;
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return;
+      sessionStorage.removeItem(key); // one-shot: fresh visits start clean
+      const ctx = JSON.parse(raw);
+      if (typeof ctx.color === 'string') setActiveColor(ctx.color);
+      if (typeof ctx.category === 'string' && controlledCategory === undefined) {
+        setInternalCategory(ctx.category);
+      }
+      if (Number.isInteger(ctx.page) && ctx.page > 1) setPage(ctx.page);
+      if (Number.isFinite(ctx.scrollY) && ctx.scrollY > 0) setPendingScroll(ctx.scrollY);
+    } catch { /* corrupt snapshot — ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Apply the saved scroll position once the restored product grid has
+  // actually rendered (scrolling before the data loads would hit a short page).
+  useEffect(() => {
+    if (pendingScroll == null || loading) return;
+    window.scrollTo({ top: pendingScroll });
+    setPendingScroll(null);
+  }, [loading, pendingScroll]);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -175,7 +223,15 @@ export default function Shop({
     return () => controller.abort();
   }, [activeColor, activeCategory, page, reloadKey]);
 
+  // Reset to page 1 when the parent switches the controlled category — but
+  // skip the mount run so a page number restored from a back-navigation
+  // snapshot isn't immediately clobbered.
+  const controlledCategoryMounted = useRef(false);
   useEffect(() => {
+    if (!controlledCategoryMounted.current) {
+      controlledCategoryMounted.current = true;
+      return;
+    }
     if (controlledCategory !== undefined) setPage(1);
   }, [controlledCategory]);
 
@@ -303,6 +359,7 @@ export default function Shop({
                       <ProductCard
                           key={product.id}
                           product={product}
+                          onNavigate={saveContext}
                       />
                   ))}
                 </div>
