@@ -232,7 +232,7 @@ export default function CheckoutPage() {
                                         </div>
                                         <div className="flex-grow">
                                             <p className="text-[0.85rem] font-medium text-ink leading-tight mb-1">{item.name}</p>
-                                            <p className="text-[0.7rem] text-ink-3 mb-1">{item.size ? `${item.size} · ` : ''}{item.color ? item.color.charAt(0).toUpperCase() + item.color.slice(1) : ''}</p>
+                                            <p className="text-[0.7rem] text-ink-3 mb-1">{item.size ? `${item.size} · ` : ''}{item.gemSize ? `${item.gemSize} mm · ` : ''}{item.color ? item.color.charAt(0).toUpperCase() + item.color.slice(1) : ''}</p>
                                             <p className="text-[0.75rem] text-ink-2">Qty: {item.qty}</p>
                                         </div>
                                         <div className="text-[0.85rem] font-medium text-ink">

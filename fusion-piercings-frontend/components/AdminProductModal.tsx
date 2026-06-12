@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { Product, ProductSize, ProductColor, Collection } from '@/lib/types';
+import { Product, ProductSize, ProductGemSize, ProductColor, Collection } from '@/lib/types';
 
 interface Props {
     product?: Product | null;
@@ -25,6 +25,27 @@ function coerceSizes(raw: unknown): ProductSize[] {
             price: parsedPrice,
         };
     });
+}
+
+// Gem sizes are optional — empty array means the product has no gem variants.
+function coerceGemSizes(raw: unknown): ProductGemSize[] {
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .map((g: any) => {
+            if (typeof g === 'string') return { gem_size: g, in_stock: true, price: null };
+            if (!g || g.gem_size == null) return null;
+            const rawPrice = g.price;
+            const parsedPrice =
+                rawPrice == null || rawPrice === ''
+                    ? null
+                    : Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
+            return {
+                gem_size: String(g.gem_size),
+                in_stock: g.in_stock !== false,
+                price: parsedPrice,
+            };
+        })
+        .filter((g): g is ProductGemSize => g !== null);
 }
 
 interface PendingFile {
@@ -74,6 +95,9 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
 
     const [sizes, setSizes] = useState<ProductSize[]>(coerceSizes(product?.sizes));
     const [newSizeLabel, setNewSizeLabel] = useState('');
+
+    const [gemSizes, setGemSizes] = useState<ProductGemSize[]>(coerceGemSizes(product?.gem_sizes));
+    const [newGemSizeLabel, setNewGemSizeLabel] = useState('');
 
     const initialExisting = useMemo(() => {
         if (!product) return [];
@@ -198,8 +222,12 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     }
 
     function addSizeRow() {
-        const label = newSizeLabel.trim();
-        if (!label) return;
+        // Admin types just the number — "mm" is appended automatically.
+        const raw = newSizeLabel.trim().replace(/\s*mm$/i, '');
+        if (!raw) return;
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) return;
+        const label = `${n}mm`;
         if (sizes.some(s => s.size.toLowerCase() === label.toLowerCase())) {
             setNewSizeLabel('');
             return;
@@ -227,13 +255,47 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         }));
     }
 
+    function addGemSizeRow() {
+        const raw = newGemSizeLabel.trim().replace(/\s*mm$/i, '');
+        if (!raw) return;
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) return;
+        // Normalise: drop trailing zeros ("0.50" -> "0.5")
+        const label = String(n);
+        if (gemSizes.some(g => g.gem_size === label)) {
+            setNewGemSizeLabel('');
+            return;
+        }
+        setGemSizes(prev => [...prev, { gem_size: label, in_stock: true }]);
+        setNewGemSizeLabel('');
+    }
+
+    function removeGemSizeRow(gemSize: string) {
+        setGemSizes(prev => prev.filter(g => g.gem_size !== gemSize));
+    }
+
+    function toggleGemSizeStock(gemSize: string) {
+        setGemSizes(prev => prev.map(g => g.gem_size === gemSize ? { ...g, in_stock: !g.in_stock } : g));
+    }
+
+    function updateGemSizePrice(gemSize: string, raw: string) {
+        setGemSizes(prev => prev.map(g => {
+            if (g.gem_size !== gemSize) return g;
+            const trimmed = raw.trim();
+            if (trimmed === '') return { ...g, price: null };
+            const n = Number(trimmed);
+            if (!Number.isFinite(n) || n < 0) return g;
+            return { ...g, price: n };
+        }));
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setLoading(true);
         setError('');
 
         try {
-            if (sizes.length === 0) throw new Error('Please add at least one size.');
+            if (sizes.length === 0) throw new Error('Please add at least one bar size.');
             if (selectedColors.length === 0) throw new Error('Please pick at least one color.');
             if (selectedCategories.length === 0) throw new Error('Please pick at least one placement.');
             const totalImages = existingUrls.length + pendingFiles.length;
@@ -254,6 +316,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             formData.append('color', colorPayload);
             formData.append('colors', JSON.stringify(selectedColors));
             formData.append('sizes', JSON.stringify(sizes));
+            formData.append('gem_sizes', JSON.stringify(gemSizes));
             formData.append('material_tags', JSON.stringify(materialTags));
 
             if (isEditing) formData.append('existing_image_urls', JSON.stringify(existingUrls));
@@ -445,8 +508,8 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                             onClick={() => toggleColorStock(slug)}
                                             className={`px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all flex-shrink-0 ${
                                                 in_stock
-                                                    ? 'border-green-200 text-green-600 bg-green-50 hover:bg-red-50 hover:border-red-200 hover:text-red-500'
-                                                    : 'border-red-200 text-red-500 bg-red-50 hover:bg-green-50 hover:border-green-200 hover:text-green-600'
+                                                    ? 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 hover:border-green-300'
+                                                    : 'border-red-200 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-300'
                                             }`}
                                         >
                                             {in_stock ? 'In Stock' : 'Out of Stock'}
@@ -494,11 +557,11 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                         </div>
                     </div>
 
-                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Sizes, Pricing & Stock</label>
+                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Bar Sizes, Pricing & Stock</label>
                     <p className="text-[0.7rem] text-ink-3 mb-2">Leave price blank to use the base price above.</p>
                     <div className="border border-border-lt rounded-sm mb-4 overflow-hidden">
                         {sizes.length === 0 && (
-                            <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">No sizes added yet.</div>
+                            <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">No bar sizes added yet.</div>
                         )}
                         {sizes.map(({ size, in_stock, price: sizePrice }, i) => {
                             const baseNum = parseFloat(price);
@@ -520,7 +583,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                             value={sizePrice == null ? '' : String(sizePrice)}
                                             onChange={e => updateSizePrice(size, e.target.value)}
                                             placeholder={basePlaceholder}
-                                            aria-label={`Price for size ${size}`}
+                                            aria-label={`Price for bar size ${size}`}
                                             title="Leave blank to use the product's base price"
                                             className="w-[88px] sm:w-24 pl-5 pr-2 py-1.5 text-[0.78rem] text-ink bg-transparent border border-border-lt rounded-sm focus:border-ink focus:outline-none transition-colors"
                                         />
@@ -531,8 +594,8 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                         onClick={() => toggleSizeStock(size)}
                                         className={`px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all flex-shrink-0 ${
                                             in_stock
-                                                ? 'border-green-200 text-green-600 bg-green-50 hover:bg-red-50 hover:border-red-200 hover:text-red-500'
-                                                : 'border-red-200 text-red-500 bg-red-50 hover:bg-green-50 hover:border-green-200 hover:text-green-600'
+                                                ? 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 hover:border-green-300'
+                                                : 'border-red-200 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-300'
                                         }`}
                                     >
                                         {in_stock ? 'In Stock' : 'Out of Stock'}
@@ -540,7 +603,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                                     <button
                                         type="button"
                                         onClick={() => removeSizeRow(size)}
-                                        aria-label={`Remove size ${size}`}
+                                        aria-label={`Remove bar size ${size}`}
                                         className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all flex-shrink-0"
                                     >
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -553,15 +616,96 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                     </div>
                     <div className="flex gap-2 mb-5">
                         <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            inputMode="decimal"
                             value={newSizeLabel}
                             onChange={e => setNewSizeLabel(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSizeRow(); } }}
-                            placeholder="Add size (e.g. 8mm)"
+                            placeholder="Add bar size in mm (e.g. 8)"
                             className="flex-grow bg-transparent border border-border-lt rounded-sm px-4 py-2 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors"
                         />
                         <button
                             type="button"
                             onClick={addSizeRow}
+                            className="px-4 py-2 text-[0.7rem] font-semibold tracking-[0.12em] uppercase border border-ink text-ink rounded-sm hover:bg-ink hover:text-bg transition-all"
+                        >
+                            Add
+                        </button>
+                    </div>
+
+                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Gem Sizes (mm) — Optional</label>
+                    <div className="border border-border-lt rounded-sm mb-4 overflow-hidden">
+                        {gemSizes.length === 0 && (
+                            <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">No gem sizes added yet.</div>
+                        )}
+                        {gemSizes.map(({ gem_size, in_stock, price: gemPrice }, i) => {
+                            const baseNum = parseFloat(price);
+                            const basePlaceholder = Number.isFinite(baseNum) && baseNum > 0 ? baseNum.toFixed(2) : '0.00';
+                            return (
+                                <div
+                                    key={gem_size}
+                                    className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2.5 ${i > 0 ? 'border-t border-border-lt' : ''}`}
+                                >
+                                    <span className="flex-1 min-w-0 text-[0.85rem] text-ink font-medium truncate">{gem_size} mm</span>
+
+                                    <div className="relative flex-shrink-0">
+                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[0.75rem] text-ink-3">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            inputMode="decimal"
+                                            value={gemPrice == null ? '' : String(gemPrice)}
+                                            onChange={e => updateGemSizePrice(gem_size, e.target.value)}
+                                            placeholder={basePlaceholder}
+                                            aria-label={`Price for gem size ${gem_size} mm`}
+                                            title="Leave blank to use the product's base price"
+                                            className="w-[88px] sm:w-24 pl-5 pr-2 py-1.5 text-[0.78rem] text-ink bg-transparent border border-border-lt rounded-sm focus:border-ink focus:outline-none transition-colors"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleGemSizeStock(gem_size)}
+                                        className={`px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all flex-shrink-0 ${
+                                            in_stock
+                                                ? 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 hover:border-green-300'
+                                                : 'border-red-200 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-300'
+                                        }`}
+                                    >
+                                        {in_stock ? 'In Stock' : 'Out of Stock'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeGemSizeRow(gem_size)}
+                                        aria-label={`Remove gem size ${gem_size} mm`}
+                                        className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all flex-shrink-0"
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="flex gap-2 mb-5">
+                        <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            inputMode="decimal"
+                            value={newGemSizeLabel}
+                            onChange={e => setNewGemSizeLabel(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGemSizeRow(); } }}
+                            placeholder="Add gem size in mm (e.g. 2.5)"
+                            className="flex-grow bg-transparent border border-border-lt rounded-sm px-4 py-2 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors"
+                        />
+                        <button
+                            type="button"
+                            onClick={addGemSizeRow}
                             className="px-4 py-2 text-[0.7rem] font-semibold tracking-[0.12em] uppercase border border-ink text-ink rounded-sm hover:bg-ink hover:text-bg transition-all"
                         >
                             Add

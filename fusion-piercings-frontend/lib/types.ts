@@ -6,6 +6,13 @@ export interface ProductSize {
   price?: number | null;
 }
 
+// Gem size variant, measured in mm (e.g. "2.5"). Optional per product.
+export interface ProductGemSize {
+  gem_size: string;
+  in_stock: boolean;
+  price?: number | null;
+}
+
 export interface ProductColor {
   color: string;
   in_stock: boolean;
@@ -25,6 +32,7 @@ export interface Product {
   color?: string;           // <-- Changed from metal to color
   colors?: ProductColor[];
   sizes?: ProductSize[];
+  gem_sizes?: ProductGemSize[];
   symbol?: string;
   material_tags?: string[];
 }
@@ -36,6 +44,7 @@ export interface OrderItem {
   price: number;
   qty: number;
   size?: string | null;
+  gemSize?: string | null;  // gem size in mm
   color?: string;           // <-- Changed from metal to color
   image_url?: string;
 }
@@ -72,5 +81,6 @@ export interface CartItem {
   image_url?: string;
   qty: number;
   size: string | null;
+  gemSize?: string | null;  // gem size in mm
   color?: string;           // <-- Changed from metal to color
 }

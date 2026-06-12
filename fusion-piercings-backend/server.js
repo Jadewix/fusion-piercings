@@ -263,6 +263,35 @@ function normaliseSizes(raw) {
     });
 }
 
+// Normalise an incoming gem_sizes payload to [{gem_size, in_stock, price}].
+// gem_size is a size in mm (stored as a string label, e.g. "2.5").
+// Unlike sizes, gem sizes are optional — an empty array means the product
+// simply has no gem-size variants.
+function normaliseGemSizes(raw) {
+    if (!raw) return [];
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch { parsed = String(raw).split(',').map(s => s.trim()).filter(Boolean); }
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+        .map(g => {
+            if (typeof g === 'string') return { gem_size: g, in_stock: true, price: null };
+            if (!g || g.gem_size == null) return null;
+            const rawPrice = g.price;
+            let price = null;
+            if (rawPrice != null && rawPrice !== '') {
+                const n = Number(rawPrice);
+                if (Number.isFinite(n) && n >= 0) price = n;
+            }
+            return {
+                gem_size: String(g.gem_size),
+                in_stock: g.in_stock !== false,
+                price,
+            };
+        })
+        .filter(Boolean);
+}
+
 // Upload one in-memory file to Supabase and return its public URL.
 // Upload one in-memory file to Supabase, auto-compressing it first.
 async function uploadOne(file) {
@@ -306,13 +335,14 @@ function parseCategories(raw, fallbackSingle) {
 }
 
 app.post('/api/products', uploadImages, async (req, res) => {
-    const { name, description, price, category, color, sizes, material_tags, categories, colors } = req.body;
+    const { name, description, price, category, color, sizes, gem_sizes, material_tags, categories, colors } = req.body;
     const files = req.files || [];
 
     if (files.length === 0) return res.status(400).json({ error: "At least one image is required" });
     if (files.length > 5)   return res.status(400).json({ error: "A product can have at most 5 images" });
 
-    const parsedSizes = normaliseSizes(sizes);
+    const parsedSizes    = normaliseSizes(sizes);
+    const parsedGemSizes = normaliseGemSizes(gem_sizes);
 
     let parsedMaterialTags = [];
     if (material_tags) {
@@ -331,13 +361,14 @@ app.post('/api/products', uploadImages, async (req, res) => {
         for (const f of files) urls.push(await uploadOne(f));
 
         const result = await pool.query(
-            `INSERT INTO products (name, description, price, image_url, image_urls, category, categories, color, colors, sizes, stock_count, material_tags)
-             VALUES ($1, $2, $3, $4, $5::text[], $6, $7::text[], $8, $9::jsonb, $10::jsonb, 999, $11::text[]) RETURNING *`,
+            `INSERT INTO products (name, description, price, image_url, image_urls, category, categories, color, colors, sizes, gem_sizes, stock_count, material_tags)
+             VALUES ($1, $2, $3, $4, $5::text[], $6, $7::text[], $8, $9::jsonb, $10::jsonb, $11::jsonb, 999, $12::text[]) RETURNING *`,
             [
                 name, description, price, urls[0], urls,
                 primaryCategory, parsedCategories,
                 derivedColor, JSON.stringify(parsedColors),
                 JSON.stringify(parsedSizes),
+                JSON.stringify(parsedGemSizes),
                 parsedMaterialTags,
             ]
         );
@@ -369,10 +400,11 @@ app.patch('/api/products/:id/stock', async (req, res) => {
 
 app.put('/api/products/:id', uploadImages, async (req, res) => {
     const { id } = req.params;
-    const { name, description, price, category, color, sizes, material_tags, existing_image_urls, categories, colors } = req.body;
+    const { name, description, price, category, color, sizes, gem_sizes, material_tags, existing_image_urls, categories, colors } = req.body;
     const files = req.files || [];
 
-    const parsedSizes = sizes !== undefined ? JSON.stringify(normaliseSizes(sizes)) : null;
+    const parsedSizes    = sizes !== undefined ? JSON.stringify(normaliseSizes(sizes)) : null;
+    const parsedGemSizes = gem_sizes !== undefined ? JSON.stringify(normaliseGemSizes(gem_sizes)) : null;
 
     let parsedMaterialTags = null;
     if (material_tags) {
@@ -440,15 +472,16 @@ app.put('/api/products/:id', uploadImages, async (req, res) => {
                  color = COALESCE($6, color),
                  colors = COALESCE($7::jsonb, colors),
                  sizes = COALESCE($8::jsonb, sizes),
-                 image_url = COALESCE($9, image_url),
-                 image_urls = COALESCE($10::text[], image_urls),
-                 material_tags = COALESCE($11::text[], material_tags)
-             WHERE id = $12 RETURNING *`,
+                 gem_sizes = COALESCE($9::jsonb, gem_sizes),
+                 image_url = COALESCE($10, image_url),
+                 image_urls = COALESCE($11::text[], image_urls),
+                 material_tags = COALESCE($12::text[], material_tags)
+             WHERE id = $13 RETURNING *`,
             [
                 name, description, price,
                 primaryCategory, parsedCategories,
                 derivedColorStr, parsedColorsJson,
-                parsedSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags,
+                parsedSizes, parsedGemSizes, newPrimaryUrl, newImageUrls, parsedMaterialTags,
                 id,
             ]
         );
@@ -851,6 +884,7 @@ async function initDB() {
     await ensureColumn('color',         "VARCHAR DEFAULT 'gold'"); // <-- Ensures it exists if table was made without it
     await ensureColumn('colors',        "JSONB DEFAULT '[]'::jsonb");
     await ensureColumn('sizes',         "TEXT[] DEFAULT '{}'");
+    await ensureColumn('gem_sizes',     "JSONB DEFAULT '[]'::jsonb");
     await ensureColumn('stock_count',   "INTEGER DEFAULT 999");
     await ensureColumn('material_tags', "TEXT[] DEFAULT '{}'");
 

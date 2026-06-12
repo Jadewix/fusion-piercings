@@ -48,8 +48,8 @@ function AdminProductRowBase({ product, onToggleStock, onEdit, onDelete }: Admin
             title={isActive ? 'Click to mark as Out of Stock' : 'Click to mark as In Stock'}
             className={`px-2 py-1 text-[0.55rem] sm:px-3 sm:py-1.5 sm:text-[0.7rem] font-bold uppercase tracking-wider rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${
               isActive
-                ? 'border-green-200 text-green-600 hover:bg-red-50 hover:border-red-200 hover:text-red-500'
-                : 'border-red-200 text-red-500 hover:bg-green-50 hover:border-green-200 hover:text-green-600'
+                ? 'border-green-200 text-green-600 hover:bg-green-50 hover:border-green-300'
+                : 'border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300'
             }`}
           >
             {isActive ? 'In Stock' : 'Out of Stock'}

@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Product, ProductSize, ProductColor } from '@/lib/types';
+import { Product, ProductSize, ProductGemSize, ProductColor } from '@/lib/types';
 import { useCart } from '@/context/CartContext';
 import { COLOR_DOT_GRADIENT, COLOR_LABELS } from '@/lib/products';
 
@@ -24,6 +24,27 @@ function coerceColors(raw: unknown, legacyColor?: string): ProductColor[] {
   if (legacyColor === 'silver' || legacyColor === 'titanium') return [{ color: 'silver', in_stock: true }];
   if (legacyColor === 'gold') return [{ color: 'gold', in_stock: true }];
   return [];
+}
+
+// Gem sizes are optional — an empty array means no gem-size selector renders.
+function coerceGemSizes(raw: unknown): ProductGemSize[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+      .map((g: any) => {
+        if (typeof g === 'string') return { gem_size: g, in_stock: true, price: null };
+        if (!g || g.gem_size == null) return null;
+        const rawPrice = g.price;
+        const parsedPrice =
+            rawPrice == null || rawPrice === ''
+                ? null
+                : Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
+        return {
+          gem_size: String(g.gem_size),
+          in_stock: g.in_stock !== false,
+          price: parsedPrice,
+        };
+      })
+      .filter((g): g is ProductGemSize => g !== null);
 }
 
 function coerceSizes(raw: unknown): ProductSize[] {
@@ -50,9 +71,10 @@ export default function ProductDetailClient({ productId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
 
-  const [activeImage, setActiveImage]     = useState(0);
-  const [selectedSize, setSelectedSize]   = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string>('gold'); // 'gold' = Surgical Steel
+  const [activeImage, setActiveImage]       = useState(0);
+  const [selectedSize, setSelectedSize]     = useState<string | null>(null);
+  const [selectedGemSize, setSelectedGemSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor]   = useState<string>('gold'); // 'gold' = Surgical Steel
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +91,9 @@ export default function ProductDetailClient({ productId }: Props) {
           const sizes = coerceSizes(data.sizes);
           const firstAvailable = sizes.find(s => s.in_stock) ?? sizes[0];
           setSelectedSize(firstAvailable?.size ?? null);
+          const gems = coerceGemSizes(data.gem_sizes);
+          const firstGem = gems.find(g => g.in_stock) ?? gems[0];
+          setSelectedGemSize(firstGem?.gem_size ?? null);
           const colors = coerceColors(data.colors, data.color);
           const firstColor = colors.find(c => c.in_stock) ?? colors[0];
           if (firstColor) setSelectedColor(firstColor.color);
@@ -79,7 +104,8 @@ export default function ProductDetailClient({ productId }: Props) {
     return () => { cancelled = true; };
   }, [productId]);
 
-  const sizes  = useMemo(() => coerceSizes(product?.sizes), [product?.sizes]);
+  const sizes    = useMemo(() => coerceSizes(product?.sizes), [product?.sizes]);
+  const gemSizes = useMemo(() => coerceGemSizes(product?.gem_sizes), [product?.gem_sizes]);
   const colors = useMemo(
       () => coerceColors(product?.colors, product?.color),
       [product?.colors, product?.color]
@@ -131,19 +157,30 @@ export default function ProductDetailClient({ productId }: Props) {
   }
 
   const isBothColor     = product.color === 'both';
+  const hasGemSizes     = gemSizes.length > 0;
   const allSizesOOS     = sizes.every(s => !s.in_stock);
+  const allGemSizesOOS  = hasGemSizes && gemSizes.every(g => !g.in_stock);
   const allColorsOOS    = colors.length > 0 && colors.every(c => !c.in_stock);
-  const isProductOOS    = Number(product.stock_count) === 0 || allSizesOOS || allColorsOOS;
+  const isProductOOS    = Number(product.stock_count) === 0 || allSizesOOS || allGemSizesOOS || allColorsOOS;
   const selectedSizeObj = sizes.find(s => s.size === selectedSize);
   const selectedSizeOOS = selectedSizeObj?.in_stock === false;
+  const selectedGemObj  = hasGemSizes ? gemSizes.find(g => g.gem_size === selectedGemSize) : undefined;
+  const selectedGemOOS  = hasGemSizes && selectedGemObj?.in_stock === false;
   const selectedColorObj = colors.find(c => c.color === selectedColor);
   const selectedColorOOS = isBothColor && selectedColorObj?.in_stock === false;
-  const canAdd          = !isProductOOS && selectedSize !== null && !selectedSizeOOS && !selectedColorOOS;
+  const canAdd          = !isProductOOS && selectedSize !== null && !selectedSizeOOS
+                          && !selectedColorOOS
+                          && (!hasGemSizes || (selectedGemSize !== null && !selectedGemOOS));
 
+  // Price priority: gem-size price > size price > base price.
   const basePrice       = Number(product.price);
-  const effectivePrice  = selectedSizeObj?.price != null && Number.isFinite(selectedSizeObj.price)
+  const sizePrice       = selectedSizeObj?.price != null && Number.isFinite(selectedSizeObj.price)
                             ? Number(selectedSizeObj.price)
-                            : basePrice;
+                            : null;
+  const gemPrice        = selectedGemObj?.price != null && Number.isFinite(selectedGemObj.price)
+                            ? Number(selectedGemObj.price)
+                            : null;
+  const effectivePrice  = gemPrice ?? sizePrice ?? basePrice;
   const formattedPrice  = effectivePrice.toFixed(2);
 
   function handleAdd() {
@@ -152,7 +189,8 @@ export default function ProductDetailClient({ productId }: Props) {
         product,
         selectedSize,
         isBothColor ? selectedColor : undefined,
-        selectedSizeObj?.price ?? null,
+        gemPrice ?? sizePrice ?? null,
+        hasGemSizes ? selectedGemSize : null,
     );
   }
 
@@ -320,10 +358,10 @@ export default function ProductDetailClient({ productId }: Props) {
                 </div>
             )}
 
-            {/* Size selector */}
+            {/* Bar size selector */}
             <div className="mb-8">
               <p className="text-[0.7rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-3">
-                Size
+                Bar Size
               </p>
               <div className="flex flex-wrap gap-2">
                 {sizes.map(({ size, in_stock }) => {
@@ -346,9 +384,41 @@ export default function ProductDetailClient({ productId }: Props) {
                 })}
               </div>
               {selectedSizeOOS && (
-                  <p className="text-[0.72rem] text-red-500 mt-2.5">This size is currently out of stock.</p>
+                  <p className="text-[0.72rem] text-red-500 mt-2.5">This bar size is currently out of stock.</p>
               )}
             </div>
+
+            {/* Gem size selector (only when the product has gem-size variants) */}
+            {hasGemSizes && (
+                <div className="mb-8">
+                  <p className="text-[0.7rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-3">
+                    Gem Size
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {gemSizes.map(({ gem_size, in_stock }) => {
+                      const selected = selectedGemSize === gem_size;
+                      return (
+                          <button
+                              key={gem_size}
+                              onClick={() => setSelectedGemSize(gem_size)}
+                              aria-pressed={selected}
+                              aria-label={`${gem_size} mm${in_stock ? '' : ' (out of stock)'}`}
+                              className={`min-w-[64px] px-4 py-2.5 text-[0.85rem] font-medium border rounded-sm transition-all duration-200 ${
+                                  selected
+                                      ? 'bg-ink border-ink text-bg'
+                                      : 'bg-transparent border-border text-ink hover:border-ink'
+                              } ${!in_stock ? 'line-through text-ink-3 hover:border-border' : ''}`}
+                          >
+                            {gem_size} mm
+                          </button>
+                      );
+                    })}
+                  </div>
+                  {selectedGemOOS && (
+                      <p className="text-[0.72rem] text-red-500 mt-2.5">This gem size is currently out of stock.</p>
+                  )}
+                </div>
+            )}
 
             {/* CTA */}
             {isProductOOS ? (
