@@ -35,6 +35,12 @@ export function generateStaticParams() {
   return Object.keys(COLLECTIONS).map(slug => ({ slug }));
 }
 
+// The collection set is fixed (exactly the three keys above) and the page
+// already 404s unknown slugs via notFound(). Disabling dynamicParams makes this
+// route fully static SSG with no Node.js on-demand fallback — which is what
+// next-on-pages flagged as an "Invalid prerender config" on Cloudflare Pages.
+export const dynamicParams = false;
+
 export default function CollectionPage({ params }: Props) {
   const collection = COLLECTIONS[params.slug];
   if (!collection) notFound();

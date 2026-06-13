@@ -52,12 +52,13 @@ export default function CartDrawer() {
                 <div className="flex flex-col items-center justify-center h-full gap-4 py-12 text-ink-3">
                   <div className="w-16 h-16 rounded-full border-2 border-border" />
                   <p className="text-sm text-ink-2">Your cart is empty</p>
-                  <button
+                  <Link
+                      href="/#shop"
                       onClick={closeCart}
                       className="text-[0.72rem] font-medium tracking-[0.08em] uppercase text-gold-dk border border-gold px-5 py-2 rounded-sm hover:bg-ink hover:text-bg hover:border-ink transition-all"
                   >
                     Browse Collection
-                  </button>
+                  </Link>
                 </div>
             ) : (
                 <div className="divide-y divide-border-lt">

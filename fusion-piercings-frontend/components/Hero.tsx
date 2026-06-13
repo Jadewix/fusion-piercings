@@ -8,33 +8,45 @@ export default function Hero() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const el = imageCardRef.current;
+    if (!el) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let raf = 0;
-    let latest = window.scrollY;
-    let ticking = false;
+    let running = false;
+    let current = 0; // eased offset (px), trails the target for a smooth drift
 
-    const apply = () => {
-      const el = imageCardRef.current;
-      if (el) {
-        const offset = Math.min(latest * 0.06, 32);
-        el.style.transform = `translate3d(0, ${offset}px, 0)`;
+    const render = () => {
+      // How far we've scrolled into the hero drives a gentle downward drift.
+      const target = Math.min(window.scrollY * 0.08, 40);
+      // Lerp: ease current toward target so motion feels smooth, not snappy.
+      current += (target - current) * 0.09;
+
+      const y = current.toFixed(2);
+      // A whisper of scale tied to the same drift — adds life without distortion.
+      const scale = (1 + current / 2000).toFixed(4);
+      el.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
+
+      // Keep animating until we've effectively reached the target, then idle
+      // so we're not burning frames while the page is still.
+      if (Math.abs(target - current) > 0.1) {
+        raf = requestAnimationFrame(render);
+      } else {
+        running = false;
       }
-      ticking = false;
     };
 
-    const onScroll = () => {
-      latest = window.scrollY;
-      if (!ticking) {
-        ticking = true;
-        raf = requestAnimationFrame(apply);
+    const kick = () => {
+      if (!running) {
+        running = true;
+        raf = requestAnimationFrame(render);
       }
     };
 
-    apply();
-    window.addEventListener('scroll', onScroll, { passive: true });
+    kick(); // settle initial position (e.g. refreshed mid-page)
+    window.addEventListener('scroll', kick, { passive: true });
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', kick);
       cancelAnimationFrame(raf);
     };
   }, []);

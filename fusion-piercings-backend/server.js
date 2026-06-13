@@ -669,10 +669,12 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
 
         // --- STYLED EMAIL HTML GENERATOR ---
         const itemListHTML = items.map(item => {
+            // Cart sends gemSize (camelCase); fall back to gem_size just in case.
+            const gem = item.gemSize ?? item.gem_size;
             const attributes = [
                 `Qty: ${item.qty}`,
-                item.size ? `Size: ${item.size}` : null,
-                item.gem_size ? `Gem: ${item.gem_size}` : null,
+                item.size ? `Bar: ${item.size}` : null,
+                gem ? `Gem: ${gem} mm` : null,
                 item.color || item.metal || null
             ].filter(Boolean).join(' &middot; ');
 

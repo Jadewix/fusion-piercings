@@ -57,3 +57,15 @@
     pointer-events: none;
   }
 }
+
+/* iOS Safari auto-zooms into any focused field whose font-size is below 16px.
+   Enforce a 16px minimum on small screens so tapping an input on iPhone never
+   triggers that zoom. Kept unlayered so it overrides Tailwind's text-* utility
+   classes; desktop keeps the refined compact sizing via the media query. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

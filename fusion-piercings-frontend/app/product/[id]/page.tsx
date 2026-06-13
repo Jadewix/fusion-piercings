@@ -9,6 +9,12 @@ import { SITE_URL } from '@/lib/site';
 import { Product } from '@/lib/types';
 import ProductDetailClient from './ProductDetailClient';
 
+// Product IDs are unbounded (new products are added via the admin panel), so
+// this route can't be statically enumerated and is server-rendered on demand.
+// Cloudflare Pages (next-on-pages) requires every on-demand route to run on the
+// Edge Runtime — `fetch` is the only platform API used here, which Edge supports.
+export const runtime = 'edge';
+
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 // Fetched on the server for metadata + JSON-LD. Cached and deduped within a
