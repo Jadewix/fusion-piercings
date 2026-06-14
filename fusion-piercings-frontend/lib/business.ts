@@ -54,8 +54,6 @@ export const LOCATIONS = [
   { value: 'adma',    label: 'Adma',    region: 'Mount Lebanon' },
 ] as const;
 
-export type LocationValue = typeof LOCATIONS[number]['value'];
-
 /** True once a placeholder has been replaced with a real value. */
 export const isFilled = (v?: string): boolean => !!v && !v.trim().startsWith('[');
 

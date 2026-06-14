@@ -3,7 +3,7 @@ import type { Product } from './types';
 import { SITE_URL } from './site';
 import { BUSINESS, isFilled } from './business';
 
-export const SITE_NAME = BUSINESS.name;
+const SITE_NAME = BUSINESS.name;
 
 const SOCIALS = [BUSINESS.instagram, BUSINESS.tiktok];
 

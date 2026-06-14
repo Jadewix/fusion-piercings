@@ -1,38 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
+import FaqAccordion from '@/components/FaqAccordion';
 import { FAQS } from './faqs';
-
-/* ─── FAQ Accordion Item ──────────────────────────────────────────────────── */
-function FaqItem({ q, a }: { q: string; a: string }) {
-    const [open, setOpen] = useState(false);
-    return (
-        <div className="border-b border-border-lt">
-            <button
-                onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center justify-between gap-4 py-5 text-left group"
-                aria-expanded={open}
-            >
-                <span className="text-[0.88rem] sm:text-[0.92rem] font-medium text-ink group-hover:text-gold-dk transition-colors">{q}</span>
-                <svg
-                    className={`w-4 h-4 text-ink-3 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                    viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
-                </svg>
-            </button>
-            {open && (
-                <div className="pb-5 animate-fade-in">
-                    <p className="text-[0.82rem] text-ink-2 leading-[1.8] font-light">{a}</p>
-                </div>
-            )}
-        </div>
-    );
-}
 
 /* ─── Page ────────────────────────────────────────────────────────────────── */
 export default function FaqPage() {
@@ -70,9 +43,7 @@ export default function FaqPage() {
                 {/* ── FAQ list ─────────────────────────────────────────── */}
                 <section className="pb-16 sm:pb-24 px-4 sm:px-8">
                     <div className="max-w-[700px] mx-auto">
-                        <div className="border-t border-border-lt">
-                            {FAQS.map(faq => <FaqItem key={faq.q} q={faq.q} a={faq.a} />)}
-                        </div>
+                        <FaqAccordion items={FAQS} />
 
                         {/* Internal links — natural cross-references for users & crawlers */}
                         <p className="text-[0.82rem] text-ink-2 leading-[1.9] font-light mt-10">
