@@ -19,9 +19,8 @@ export default function PrivacyPolicyPage() {
     >
       <LegalSection heading="1. Who We Are">
         <p>
-          {LEGAL.businessName}, trading as {LEGAL.tradeName}, operates this website and is based in {LEGAL.country}.
-          We are responsible for your personal information. You can reach us at{' '}
-          <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a>, on WhatsApp at{' '}
+          {LEGAL.tradeName} operates this website and is based in {LEGAL.country}.
+          We are responsible for your personal information. You can reach us on WhatsApp at{' '}
           <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>,
           or at {LEGAL.address}.
         </p>
@@ -78,8 +77,9 @@ export default function PrivacyPolicyPage() {
         <p>
           If you have consented, we may send you promotional emails about new products, collections, and offers.
           Every marketing email includes an unsubscribe link, and you can opt out at any time by clicking it or by
-          emailing us at <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a>. Opting out of
-          marketing will not affect transactional messages such as order confirmations.
+          messaging us on WhatsApp at{' '}
+          <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>.
+          Opting out of marketing will not affect transactional messages such as order confirmations.
         </p>
       </LegalSection>
 
@@ -94,9 +94,9 @@ export default function PrivacyPolicyPage() {
       <LegalSection heading="8. Your Rights">
         <p>
           You may request access to the personal information we hold about you, ask us to correct or delete it, or
-          withdraw your consent to marketing. To exercise any of these rights, contact us at{' '}
-          <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a>. We will respond within a
-          reasonable timeframe.
+          withdraw your consent to marketing. To exercise any of these rights, contact us on WhatsApp at{' '}
+          <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>.
+          We will respond within a reasonable timeframe.
         </p>
       </LegalSection>
 
@@ -125,8 +125,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection heading="12. Contact Us">
         <p>
-          Questions about this policy or your data? Email{' '}
-          <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a> or message us on WhatsApp at{' '}
+          Questions about this policy or your data? Message us on WhatsApp at{' '}
           <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>.
         </p>
       </LegalSection>

@@ -67,8 +67,7 @@ export default function ShippingPage() {
 
       <LegalSection heading="8. Contact Us">
         <p>
-          Questions about delivery? Email{' '}
-          <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a> or message us on WhatsApp at{' '}
+          Questions about delivery? Message us on WhatsApp at{' '}
           <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>.
         </p>
       </LegalSection>

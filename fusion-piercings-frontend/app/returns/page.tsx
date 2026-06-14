@@ -50,8 +50,7 @@ export default function ReturnsPage() {
 
       <LegalSection heading="5. How to Start a Return">
         <p>
-          Email us at <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a> or message us on
-          WhatsApp at{' '}
+          Message us on WhatsApp at{' '}
           <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>{' '}
           with your order number and the reason for your return. We&rsquo;ll guide you through the next steps.
         </p>
@@ -59,9 +58,10 @@ export default function ReturnsPage() {
 
       <LegalSection heading="6. Refunds">
         <p>
-          Because orders are paid by Cash on Delivery, approved refunds are issued by {LEGAL.refundMethod},
-          typically within a few business days of approval. We&rsquo;ll let you know as soon as your refund has
-          been processed.
+          Because orders are paid by Cash on Delivery, approved refunds are given in {LEGAL.refundMethod} when the
+          returned item is collected: our driver brings your refund and picks up the item at the same time. A
+          return delivery fee applies and is payable to the driver (see Section 8). We&rsquo;ll let you know as soon
+          as your refund has been approved.
         </p>
       </LegalSection>
 
@@ -82,8 +82,7 @@ export default function ReturnsPage() {
 
       <LegalSection heading="9. Contact Us">
         <p>
-          Need help with a return? Email{' '}
-          <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a> or reach us on WhatsApp at{' '}
+          Need help with a return? Reach us on WhatsApp at{' '}
           <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>.
         </p>
       </LegalSection>

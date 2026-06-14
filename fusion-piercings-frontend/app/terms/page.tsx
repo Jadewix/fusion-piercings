@@ -126,8 +126,7 @@ export default function TermsPage() {
 
       <LegalSection heading="13. Contact Us">
         <p>
-          Questions about these Terms? Email{' '}
-          <a href={`mailto:${LEGAL.email}`} className={linkCls}>{LEGAL.email}</a> or message us on WhatsApp at{' '}
+          Questions about these Terms? Message us on WhatsApp at{' '}
           <a href={LEGAL.whatsappLink} className={linkCls} target="_blank" rel="noopener noreferrer">{LEGAL.whatsapp}</a>.
         </p>
       </LegalSection>

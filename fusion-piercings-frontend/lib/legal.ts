@@ -11,7 +11,7 @@ export const LEGAL = {
   tradeName:      BUSINESS.name,
   businessName:   BUSINESS.legalName,
   country:        BUSINESS.country,
-  governingCity:  '[City whose courts govern disputes — e.g. Zgharta or Tripoli]',
+  governingCity:  'Lebanon',
   registration:   '', // optional commercial register / VAT no. Leave '' to hide the line.
 
   // Contact (from lib/business.ts)
@@ -22,20 +22,20 @@ export const LEGAL = {
   hours:          hoursDisplay(),
 
   // Delivery
-  courier:        '[Delivery partner or "our own drivers"]',
-  deliveryAreas:  '[Delivery areas — e.g. all Lebanese governorates]',
-  deliveryTime:   '[Typical delivery time — e.g. 2–5 business days]',
+  courier:        'third-party courier companies or our own drivers',
+  deliveryAreas:  'all governorates',
+  deliveryTime:   '3–5 business days',
   freeShipThreshold: 75, // USD
   deliveryFee:    3,     // USD
 
   // Returns
   returnWindowDays: 14,
-  refundMethod:   '[Refund method — e.g. cash, bank transfer, or store credit]',
+  refundMethod:   'cash, handed to you by our driver',
 
   // Social (from lib/business.ts)
   instagram:      BUSINESS.instagram,
   tiktok:         BUSINESS.tiktok,
 
   // Shown as "Last updated" on every legal page.
-  lastUpdated:    'June 9, 2026',
+  lastUpdated:    'June 14, 2026',
 };

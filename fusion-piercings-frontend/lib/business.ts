@@ -10,10 +10,10 @@
 
 export const BUSINESS = {
   name: 'Fusion Piercings',
-  legalName: '[Legal Business Name — e.g. Fusion Piercings SARL]',
+  legalName: 'Fusion Piercings',
 
-  // Contact
-  email:        '[support email — e.g. hello@fusionpiercings.com]',
+  // Contact — no public support email; customers reach us via WhatsApp only.
+  email:        '',
   phone:        '+961 71 433 119',   // human-readable
   phoneE164:    '+96171433119',      // for tel: links and schema
   whatsappLink: 'https://wa.me/96171433119',
