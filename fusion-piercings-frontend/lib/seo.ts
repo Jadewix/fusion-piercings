@@ -14,6 +14,13 @@ export function organizationSchema() {
     name: SITE_NAME,
     url: SITE_URL,
     logo: `${SITE_URL}/img/Fusion-logo-svg.svg`,
+    contactPoint: {
+      '@type': 'ContactPoint',
+      telephone: BUSINESS.phoneE164,
+      contactType: 'customer service',
+      areaServed: BUSINESS.countryCode,
+      availableLanguage: ['en', 'ar'],
+    },
     sameAs: SOCIALS,
   };
 }

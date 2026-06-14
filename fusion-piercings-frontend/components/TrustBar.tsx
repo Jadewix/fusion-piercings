@@ -2,7 +2,7 @@ const ITEMS = [
   'FREE SHIPPING OVER $75',
   'NICKEL-FREE GUARANTEE',
   'STERILE & HYGIENIC',
-  'PIERCER APPROVED',
+  'DELIVERY ALL OVER LEBANON',
 ];
 
 export default function TrustBar() {

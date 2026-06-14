@@ -34,8 +34,10 @@ export default function Footer() {
           </a>
         </div>
 
-        {/* Legal links */}
-        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="Legal">
+        {/* Footer links */}
+        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="Footer">
+          <Link href="/care-guide" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Care Guide</Link>
+          <Link href="/faq" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">FAQ</Link>
           <Link href="/privacy" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Privacy Policy</Link>
           <Link href="/terms" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Terms of Service</Link>
           <Link href="/returns" className="text-[0.72rem] text-white/40 hover:text-gold-lt transition-colors">Returns &amp; Refunds</Link>

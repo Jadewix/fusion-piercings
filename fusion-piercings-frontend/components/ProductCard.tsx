@@ -11,9 +11,32 @@ interface Props {
   onNavigate?: () => void;
 }
 
+// Resolve the dot's color key from whatever the database has set, in priority
+// order: explicit `color` → the `colors[]` selection → the material collection.
+// gold → gold dot, silver/titanium → silver dot, both → split dot.
+function resolveColorKey(product: Product): string {
+  const c = (product.color || '').toLowerCase();
+  if (c === 'gold' || c === 'silver' || c === 'titanium' || c === 'both') return c;
+
+  const colors = Array.isArray(product.colors)
+    ? product.colors.map(x => (x.color || '').toLowerCase())
+    : [];
+  const hasGold   = colors.includes('gold');
+  const hasSilver = colors.includes('silver') || colors.includes('titanium');
+  if (hasGold && hasSilver) return 'both';
+  if (hasGold)   return 'gold';
+  if (hasSilver) return 'silver';
+
+  const tags = (product.material_tags || []).map(t => t.toLowerCase());
+  if (tags.includes('titanium')) return 'silver';
+  if (tags.includes('gold-plated-hoops') || tags.includes('surgical-steel')) return 'gold';
+
+  return 'gold';
+}
+
 export default function ProductCard({ product, onNavigate }: Props) {
   const formattedPrice = Number(product.price).toFixed(2);
-  const colorType      = product.color    || 'gold';
+  const colorType      = resolveColorKey(product);
   const categoryName   = product.category || 'Collection';
   const isOutOfStock   = Number(product.stock_count) === 0;
 

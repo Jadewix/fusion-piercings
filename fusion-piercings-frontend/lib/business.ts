@@ -35,7 +35,8 @@ export const BUSINESS = {
   hours: [] as Array<{ days: string[]; opens: string; closes: string }>,
 
   // Towns/areas you serve (used in JSON-LD areaServed + page copy).
-  areaServed: ['Zgharta', 'Ehden', 'North Lebanon'],
+  // Matches the studio locations in LOCATIONS plus the wider regions.
+  areaServed: ['Zgharta', 'Batroun', 'Adma', 'Ehden', 'North Lebanon', 'Mount Lebanon', 'Lebanon'],
 
   // Social
   instagram: 'https://www.instagram.com/fusionpiercings/',

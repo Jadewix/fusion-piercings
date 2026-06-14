@@ -461,6 +461,14 @@ export default function ProductDetailClient({ productId }: Props) {
                   Add to Cart
                 </button>
             )}
+
+            {/* Aftercare cross-link — helpful for new customers and internal SEO */}
+            <p className="text-[0.78rem] text-ink-2 mt-5 leading-relaxed">
+              New to piercings? Read our{' '}
+              <Link href="/care-guide" className="text-gold-dk underline underline-offset-2 hover:text-ink transition-colors">aftercare guide</Link>{' '}
+              or the{' '}
+              <Link href="/faq" className="text-gold-dk underline underline-offset-2 hover:text-ink transition-colors">piercing FAQ</Link>.
+            </p>
           </div>
         </div>
       </div>

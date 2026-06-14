@@ -12,6 +12,10 @@ node_modules/
 build/
 dist/
 
+# cloudflare pages / wrangler build output & local state
+/.vercel/
+/.wrangler/
+
 # misc
 .DS_Store
 *.pem

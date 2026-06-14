@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import Nav from '@/components/Nav';
 import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
@@ -246,6 +247,10 @@ export default function CareGuidePage() {
                         <div className="border-t border-border-lt">
                             {FAQS.map(faq => <FaqItem key={faq.q} q={faq.q} a={faq.a} />)}
                         </div>
+                        <p className="text-[0.82rem] text-ink-2 leading-[1.9] font-light mt-8 text-center">
+                            Have more questions? Visit our{' '}
+                            <Link href="/faq" className="text-gold-dk underline underline-offset-2 hover:text-ink transition-colors">full piercing FAQ</Link>.
+                        </p>
                     </div>
                 </section>
 

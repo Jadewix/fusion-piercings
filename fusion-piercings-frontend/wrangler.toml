@@ -1,0 +1,16 @@
+# Cloudflare Pages configuration for the Fusion Piercings storefront.
+# Used by both `wrangler pages deploy` (CLI deploys) and Cloudflare's connected
+# Git builds. Keeping these here means the runtime settings travel with the code
+# instead of living only in the dashboard.
+
+name = "fusion-piercings"
+
+# Where `@cloudflare/next-on-pages` writes the built site. `wrangler pages deploy`
+# and `wrangler pages dev` read this, so neither command needs a path argument.
+pages_build_output_dir = ".vercel/output/static"
+
+# Required so Next.js (incl. the edge product route) can use Node built-ins on the
+# Workers runtime. This is the in-repo equivalent of the dashboard nodejs_compat
+# flag — it fixes the "Node.JS Compatibility Error" permanently.
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]

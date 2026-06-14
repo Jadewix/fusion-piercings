@@ -79,11 +79,11 @@ export default function Hero() {
               <div className="animate-badge-float">
                 <div className="relative w-full aspect-[3/2] sm:aspect-[16/9] lg:aspect-[4/5] overflow-hidden lg:rounded-[24px] lg:border lg:border-border-lt shadow-md bg-bg-warm">
                   <Image
-                    src="/img/Hero-img.png"
+                    src="/img/Hero-img.webp"
                     alt="Fusion Piercings jewelry"
                     fill
                     priority
-                    quality={90}
+                    quality={72}
                     sizes="(max-width: 1024px) 100vw, 440px"
                     className="object-cover object-center select-none"
                   />
@@ -109,7 +109,7 @@ export default function Hero() {
               At Fusion, we turn piercing into a luxury experience through an individualized approach and unparalleled standards for health and safety.
             </h1>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto mb-7">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
               <a
                 href="#shop"
                 className="inline-flex items-center justify-center bg-ink text-bg border-[1.5px] border-ink px-8 py-3.5 text-[0.78rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-[#2a2620] hover:-translate-y-px hover:shadow-md transition-all duration-200"
@@ -122,23 +122,6 @@ export default function Hero() {
               >
                 Book An Appointment
               </a>
-            </div>
-
-            <div className="flex items-center gap-4 text-[0.62rem] font-semibold tracking-[0.16em] uppercase text-ink-3">
-              <span className="inline-flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A6E3A" strokeWidth="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <polyline points="9 12 11 14 15 10" />
-                </svg>
-                Sterile
-              </span>
-              <span className="w-0.5 h-0.5 rounded-full bg-ink-3" />
-              <span className="inline-flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A6E3A" strokeWidth="2">
-                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z" />
-                </svg>
-                Hypoallergenic
-              </span>
             </div>
           </div>
 
