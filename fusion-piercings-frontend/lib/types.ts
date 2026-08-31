@@ -1,9 +1,27 @@
 // lib/types.ts
 
+// Per-colour override for one size (or gem size). A product available in both
+// gold and silver can sell 8mm in silver while gold is sold out, and can price
+// the two differently.
+//
+// `variants` is keyed by colour slug ('gold' | 'silver'). It is optional and
+// may be partial: a colour with no entry inherits the size's own `in_stock`
+// and `price`, which keeps every pre-existing product row valid with no
+// migration. Resolve it through the helpers in lib/variants.ts rather than
+// reading the map directly — availability is an AND across three levels
+// (colour → size → this override) and it's easy to get wrong by hand.
+export interface VariantOverride {
+  in_stock: boolean;
+  price?: number | null;
+}
+
+export type VariantMap = Record<string, VariantOverride>;
+
 export interface ProductSize {
   size: string;
   in_stock: boolean;
   price?: number | null;
+  variants?: VariantMap;
 }
 
 // Gem size variant, measured in mm (e.g. "2.5"). Optional per product.
@@ -11,6 +29,7 @@ export interface ProductGemSize {
   gem_size: string;
   in_stock: boolean;
   price?: number | null;
+  variants?: VariantMap;
 }
 
 export interface ProductColor {

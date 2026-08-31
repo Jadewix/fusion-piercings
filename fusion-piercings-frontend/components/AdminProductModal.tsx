@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { Product, ProductSize, ProductGemSize, ProductColor, Collection } from '@/lib/types';
+import {
+    Product, ProductSize, ProductGemSize, ProductColor, Collection,
+    VariantMap, VariantOverride,
+} from '@/lib/types';
+import { coerceSizes, coerceGemSizes, coerceColors, isProductSoldOut } from '@/lib/variants';
 
 interface Props {
     product?: Product | null;
@@ -10,42 +14,209 @@ interface Props {
     onSave: () => void;
 }
 
-function coerceSizes(raw: unknown): ProductSize[] {
-    if (!Array.isArray(raw) || raw.length === 0) return [{ size: 'One Size', in_stock: true }];
-    return raw.map((s: any) => {
-        if (typeof s === 'string') return { size: s, in_stock: true };
-        const rawPrice = s.price;
-        const parsedPrice =
-            rawPrice == null || rawPrice === ''
-                ? null
-                : Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
-        return {
-            size: String(s.size),
-            in_stock: s.in_stock !== false,
-            price: parsedPrice,
-        };
-    });
+// A size or gem size — both carry the same optional per-colour override map.
+type VariantEntry = { in_stock: boolean; price?: number | null; variants?: VariantMap };
+
+/** The override for one colour, defaulting to "inherits the row" when unset. */
+function variantOf(entry: VariantEntry, color: string): VariantOverride {
+    return entry.variants?.[color] ?? { in_stock: true, price: null };
 }
 
-// Gem sizes are optional — empty array means the product has no gem variants.
-function coerceGemSizes(raw: unknown): ProductGemSize[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-        .map((g: any): ProductGemSize | null => {
-            if (typeof g === 'string') return { gem_size: g, in_stock: true, price: null };
-            if (!g || g.gem_size == null) return null;
-            const rawPrice = g.price;
-            const parsedPrice =
-                rawPrice == null || rawPrice === ''
-                    ? null
-                    : Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
-            return {
-                gem_size: String(g.gem_size),
-                in_stock: g.in_stock !== false,
-                price: parsedPrice,
-            };
-        })
-        .filter((g): g is ProductGemSize => g !== null);
+/** Immutably patch one colour's override on a size/gem-size entry. */
+function withVariant<T extends VariantEntry>(entry: T, color: string, patch: Partial<VariantOverride>): T {
+    return {
+        ...entry,
+        variants: {
+            ...entry.variants,
+            [color]: { ...variantOf(entry, color), ...patch },
+        },
+    };
+}
+
+/**
+ * Drop override entries for colours the product no longer offers, and drop the
+ * map entirely once it holds nothing. Without this, de-selecting a colour would
+ * leave dead keys in the JSONB that quietly come back if the colour is re-added.
+ */
+function pruneVariants<T extends VariantEntry>(entry: T, colors: string[]): T {
+    if (!entry.variants) return entry;
+    const kept: VariantMap = {};
+    for (const color of colors) {
+        if (entry.variants[color]) kept[color] = entry.variants[color];
+    }
+    const { variants: _dropped, ...rest } = entry;
+    return (Object.keys(kept).length > 0 ? { ...rest, variants: kept } : rest) as T;
+}
+
+/**
+ * Fold one colour's overrides into the row itself and drop the map.
+ *
+ * Used when the product drops to a single colour: the per-colour split stops
+ * being meaningful, but the surviving colour's values are still the truth. A
+ * plain prune would lose them — a size marked sold out in silver would quietly
+ * come back in stock when gold was removed.
+ */
+function collapseVariants<T extends VariantEntry>(entry: T, color: string): T {
+    const { variants, ...rest } = entry;
+    const cell = variants?.[color];
+    if (!cell) return rest as T;
+    return {
+        ...rest,
+        // The row switch still wins: a row that was off stays off.
+        in_stock: entry.in_stock && cell.in_stock,
+        price: cell.price ?? entry.price ?? null,
+    } as T;
+}
+
+const stockPillClass = (inStock: boolean, disabled = false) =>
+    `px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all flex-shrink-0 ${
+        disabled
+            ? 'border-border-lt text-ink-3 bg-transparent cursor-not-allowed'
+            : inStock
+                ? 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 hover:border-green-300'
+                : 'border-red-200 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-300'
+    }`;
+
+// Width is applied per call site — the row field is fixed-width, the matrix
+// cell field fills its column. Keeping it out of the shared string avoids two
+// competing w-* utilities where Tailwind's source order, not the class list,
+// would decide the winner.
+const priceInputClass =
+    'pl-5 pr-2 py-1.5 text-[0.78rem] text-ink bg-transparent border border-border-lt rounded-sm focus:border-ink focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+
+interface VariantRowProps {
+    /** Display label for the size, e.g. "8mm" or "2.5 mm". */
+    label: string;
+    /** Noun used in aria-labels, e.g. "bar size" or "gem size". */
+    noun: string;
+    entry: VariantEntry;
+    /** Colour columns. Empty renders the single-column (pre-matrix) layout. */
+    colors: { slug: string; label: string }[];
+    /** Product base price, shown as the fallback placeholder. */
+    basePlaceholder: string;
+    isFirst: boolean;
+    onToggleRowStock: () => void;
+    onRowPriceChange: (raw: string) => void;
+    onToggleCellStock: (color: string) => void;
+    onCellPriceChange: (color: string, raw: string) => void;
+    onRemove: () => void;
+}
+
+/**
+ * One size across every colour the product comes in.
+ *
+ * With 0–1 colours this is the original flat row: label, price, stock, remove.
+ * With 2+ colours the row keeps its master stock toggle and default price, and
+ * grows a grid of per-colour cells beneath — that's where "8mm sold out in gold
+ * but still available in silver" gets set.
+ *
+ * Turning the master toggle off disables the cells rather than hiding them: it
+ * makes clear that the row-level switch wins, instead of leaving cells that
+ * look editable but can't affect anything.
+ */
+function VariantRow({
+    label, noun, entry, colors, basePlaceholder, isFirst,
+    onToggleRowStock, onRowPriceChange, onToggleCellStock, onCellPriceChange, onRemove,
+}: VariantRowProps) {
+    const isMatrix = colors.length > 1;
+    const rowPrice = entry.price;
+    // Cells inherit the row's price when they have none of their own.
+    const cellPlaceholder = rowPrice != null ? rowPrice.toFixed(2) : basePlaceholder;
+
+    return (
+        <div className={`px-3 py-2.5 ${isFirst ? '' : 'border-t border-border-lt'}`}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+                <span className="flex-1 min-w-0 text-[0.85rem] text-ink font-medium truncate">{label}</span>
+
+                <div className="relative flex-shrink-0">
+                    <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[0.75rem] text-ink-3">$</span>
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        inputMode="decimal"
+                        value={rowPrice == null ? '' : String(rowPrice)}
+                        onChange={e => onRowPriceChange(e.target.value)}
+                        placeholder={basePlaceholder}
+                        aria-label={isMatrix ? `Default price for ${noun} ${label}` : `Price for ${noun} ${label}`}
+                        title={isMatrix
+                            ? "Default for every colour. Leave blank to use the product's base price."
+                            : "Leave blank to use the product's base price"}
+                        className={`${priceInputClass} w-[88px] sm:w-24`}
+                    />
+                </div>
+
+                <button
+                    type="button"
+                    onClick={onToggleRowStock}
+                    title={isMatrix ? 'Master switch — turning this off sells out every colour' : undefined}
+                    className={stockPillClass(entry.in_stock)}
+                >
+                    {entry.in_stock ? 'In Stock' : 'Out of Stock'}
+                </button>
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    aria-label={`Remove ${noun} ${label}`}
+                    className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all flex-shrink-0"
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+
+            {isMatrix && (
+                <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {colors.map(({ slug, label: colorLabel }) => {
+                        const cell = variantOf(entry, slug);
+                        const disabled = !entry.in_stock;
+                        return (
+                            <div
+                                key={slug}
+                                className={`rounded-sm border border-border-lt bg-bg px-2.5 py-2 ${disabled ? 'opacity-55' : ''}`}
+                            >
+                                {/* Colour name gets its own line — side by side with the
+                                    price field and pill it truncates to "G…" at this width. */}
+                                <div className="text-[0.62rem] font-semibold tracking-[0.14em] uppercase text-ink-3 mb-1.5">
+                                    {colorLabel}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <div className="relative flex-1 min-w-0">
+                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[0.72rem] text-ink-3">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            inputMode="decimal"
+                                            disabled={disabled}
+                                            value={cell.price == null ? '' : String(cell.price)}
+                                            onChange={e => onCellPriceChange(slug, e.target.value)}
+                                            placeholder={cellPlaceholder}
+                                            aria-label={`${colorLabel} price for ${noun} ${label}`}
+                                            title={`Leave blank to use the ${noun}'s price`}
+                                            className={`${priceInputClass} w-full`}
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={disabled}
+                                        onClick={() => onToggleCellStock(slug)}
+                                        aria-label={`${colorLabel} stock for ${noun} ${label}`}
+                                        className={stockPillClass(cell.in_stock, disabled)}
+                                    >
+                                        {disabled ? 'Out of Stock' : cell.in_stock ? 'In Stock' : 'Out of Stock'}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
 }
 
 interface PendingFile {
@@ -74,17 +245,9 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     // Multi-select with per-color stock toggle. Persisted as a JSONB colors[]
     // and a derived single `color` value ('gold' | 'silver' | 'both') for the
     // legacy storefront filter.
-    const [selectedColors, setSelectedColors] = useState<ProductColor[]>(() => {
-        const fromNew = product?.colors;
-        if (Array.isArray(fromNew) && fromNew.length > 0) {
-            return fromNew.map(c => ({ color: String(c.color), in_stock: c.in_stock !== false }));
-        }
-        const c = product?.color;
-        if (c === 'both')                       return [{ color: 'gold',   in_stock: true }, { color: 'silver', in_stock: true }];
-        if (c === 'silver' || c === 'titanium') return [{ color: 'silver', in_stock: true }];
-        if (c === 'gold')                       return [{ color: 'gold',   in_stock: true }];
-        return [];
-    });
+    const [selectedColors, setSelectedColors] = useState<ProductColor[]>(
+        () => coerceColors(product?.colors, product?.color)
+    );
     const [newColorPick, setNewColorPick] = useState<string>('');
     const COLOR_OPTIONS: { value: string; label: string }[] = [
         { value: 'gold',   label: 'Gold'   },
@@ -92,6 +255,22 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     ];
     const colorLabelOf = (slug: string) =>
         COLOR_OPTIONS.find(o => o.value === slug)?.label || slug;
+
+    // The colour columns of the size/gem matrices. Only worth splitting a size
+    // into per-colour cells once the product actually comes in two colours —
+    // with one colour the matrix collapses back to a single stock toggle.
+    const colorSlugs = selectedColors.map(c => c.color);
+    const showMatrix = colorSlugs.length > 1;
+    // Passed to every VariantRow. Empty below two colours, which is what makes
+    // the rows collapse back to the original single-toggle layout.
+    const matrixColumns = showMatrix
+        ? selectedColors.map(c => ({ slug: c.color, label: colorLabelOf(c.color) }))
+        : [];
+
+    // Shown as the placeholder wherever a variant price is left blank.
+    const basePriceNum = parseFloat(price);
+    const basePricePlaceholder =
+        Number.isFinite(basePriceNum) && basePriceNum > 0 ? basePriceNum.toFixed(2) : '0.00';
 
     const [sizes, setSizes] = useState<ProductSize[]>(coerceSizes(product?.sizes));
     const [newSizeLabel, setNewSizeLabel] = useState('');
@@ -171,7 +350,18 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         setNewColorPick('');
     };
     const removeColor = (value: string) => {
-        setSelectedColors(prev => prev.filter(c => c.color !== value));
+        setSelectedColors(prev => {
+            const next = prev.filter(c => c.color !== value);
+            const slugs = next.map(c => c.color);
+            // Down to one colour the matrix disappears, so fold that colour's
+            // cells back into the rows; otherwise just clear the removed
+            // colour's cells so a later re-add starts clean.
+            const settle = <T extends VariantEntry>(entry: T): T =>
+                slugs.length === 1 ? collapseVariants(entry, slugs[0]) : pruneVariants(entry, slugs);
+            setSizes(rows => rows.map(settle));
+            setGemSizes(rows => rows.map(settle));
+            return next;
+        });
     };
     const toggleColorStock = (value: string) => {
         setSelectedColors(prev =>
@@ -289,6 +479,44 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         }));
     }
 
+    // ─── Per-colour matrix cells ─────────────────────────────────────────────
+    // One cell = one (size, colour) pair. A blank price falls back to the row's
+    // own price, which in turn falls back to the product's base price.
+
+    function toggleSizeVariantStock(size: string, color: string) {
+        setSizes(prev => prev.map(s =>
+            s.size === size ? withVariant(s, color, { in_stock: !variantOf(s, color).in_stock }) : s
+        ));
+    }
+
+    function updateSizeVariantPrice(size: string, color: string, raw: string) {
+        setSizes(prev => prev.map(s => {
+            if (s.size !== size) return s;
+            const trimmed = raw.trim();
+            if (trimmed === '') return withVariant(s, color, { price: null });
+            const n = Number(trimmed);
+            if (!Number.isFinite(n) || n < 0) return s;
+            return withVariant(s, color, { price: n });
+        }));
+    }
+
+    function toggleGemVariantStock(gemSize: string, color: string) {
+        setGemSizes(prev => prev.map(g =>
+            g.gem_size === gemSize ? withVariant(g, color, { in_stock: !variantOf(g, color).in_stock }) : g
+        ));
+    }
+
+    function updateGemVariantPrice(gemSize: string, color: string, raw: string) {
+        setGemSizes(prev => prev.map(g => {
+            if (g.gem_size !== gemSize) return g;
+            const trimmed = raw.trim();
+            if (trimmed === '') return withVariant(g, color, { price: null });
+            const n = Number(trimmed);
+            if (!Number.isFinite(n) || n < 0) return g;
+            return withVariant(g, color, { price: n });
+        }));
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setLoading(true);
@@ -307,6 +535,15 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             const hasSilver = slugs.includes('silver');
             const colorPayload = hasGold && hasSilver ? 'both' : hasGold ? 'gold' : 'silver';
 
+            // Per-colour cells are only meaningful for colours the product still
+            // offers, and only when there's more than one to distinguish.
+            const sizesPayload = showMatrix
+                ? sizes.map(s => pruneVariants(s, slugs))
+                : sizes.map(s => pruneVariants(s, []));
+            const gemSizesPayload = showMatrix
+                ? gemSizes.map(g => pruneVariants(g, slugs))
+                : gemSizes.map(g => pruneVariants(g, []));
+
             const formData = new FormData();
             formData.append('name', name);
             formData.append('price', price);
@@ -315,8 +552,8 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             formData.append('categories', JSON.stringify(selectedCategories));
             formData.append('color', colorPayload);
             formData.append('colors', JSON.stringify(selectedColors));
-            formData.append('sizes', JSON.stringify(sizes));
-            formData.append('gem_sizes', JSON.stringify(gemSizes));
+            formData.append('sizes', JSON.stringify(sizesPayload));
+            formData.append('gem_sizes', JSON.stringify(gemSizesPayload));
             formData.append('material_tags', JSON.stringify(materialTags));
 
             if (isEditing) formData.append('existing_image_urls', JSON.stringify(existingUrls));
@@ -341,11 +578,14 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             }
 
             const productId = isEditing ? product.id : (await res.clone().json()).product.id;
-            const allOOS = sizes.every(s => !s.in_stock);
+            // The blanket stock_count flag now has to account for the matrix: a
+            // product is only sold out when no colour has a buyable combination
+            // left, not merely when every size row is toggled off.
+            const soldOut = isProductSoldOut(selectedColors, sizesPayload, gemSizesPayload);
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: allOOS ? 'out_of_stock' : 'in_stock' }),
+                body: JSON.stringify({ status: soldOut ? 'out_of_stock' : 'in_stock' }),
             });
 
             onSave();
@@ -364,7 +604,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             <div className="relative w-full max-w-[560px] bg-bg-card rounded-[20px] overflow-hidden shadow-xl animate-modal-enter flex flex-col max-h-[90vh]">
 
                 <div className="px-5 sm:px-7 pt-6 pb-4 border-b border-border-lt flex justify-between items-center bg-bg flex-shrink-0">
-                    <h2 className="font-serif text-[1.5rem] font-semibold text-ink leading-tight">
+                    <h2 className="font-serif text-[1.5rem] text-ink leading-tight">
                         {isEditing ? 'Edit Product' : 'Add New Product'}
                     </h2>
                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink/5 flex items-center justify-center text-ink-2 hover:bg-ink/10 hover:text-ink transition-all">
@@ -558,61 +798,31 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                     </div>
 
                     <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Bar Sizes, Pricing & Stock</label>
-                    <p className="text-[0.7rem] text-ink-3 mb-2">Leave price blank to use the base price above.</p>
+                    <p className="text-[0.7rem] text-ink-3 mb-2">
+                        {showMatrix
+                            ? 'Set stock and price per colour. Blank price falls back to the size’s own price, then the base price.'
+                            : 'Leave price blank to use the base price above.'}
+                    </p>
                     <div className="border border-border-lt rounded-sm mb-4 overflow-hidden">
                         {sizes.length === 0 && (
                             <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">No bar sizes added yet.</div>
                         )}
-                        {sizes.map(({ size, in_stock, price: sizePrice }, i) => {
-                            const baseNum = parseFloat(price);
-                            const basePlaceholder = Number.isFinite(baseNum) && baseNum > 0 ? baseNum.toFixed(2) : '0.00';
-                            return (
-                                <div
-                                    key={size}
-                                    className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2.5 ${i > 0 ? 'border-t border-border-lt' : ''}`}
-                                >
-                                    <span className="flex-1 min-w-0 text-[0.85rem] text-ink font-medium truncate">{size}</span>
-
-                                    <div className="relative flex-shrink-0">
-                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[0.75rem] text-ink-3">$</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            inputMode="decimal"
-                                            value={sizePrice == null ? '' : String(sizePrice)}
-                                            onChange={e => updateSizePrice(size, e.target.value)}
-                                            placeholder={basePlaceholder}
-                                            aria-label={`Price for bar size ${size}`}
-                                            title="Leave blank to use the product's base price"
-                                            className="w-[88px] sm:w-24 pl-5 pr-2 py-1.5 text-[0.78rem] text-ink bg-transparent border border-border-lt rounded-sm focus:border-ink focus:outline-none transition-colors"
-                                        />
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleSizeStock(size)}
-                                        className={`px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all flex-shrink-0 ${
-                                            in_stock
-                                                ? 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 hover:border-green-300'
-                                                : 'border-red-200 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-300'
-                                        }`}
-                                    >
-                                        {in_stock ? 'In Stock' : 'Out of Stock'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeSizeRow(size)}
-                                        aria-label={`Remove bar size ${size}`}
-                                        className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all flex-shrink-0"
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            );
-                        })}
+                        {sizes.map((entry, i) => (
+                            <VariantRow
+                                key={entry.size}
+                                label={entry.size}
+                                noun="bar size"
+                                entry={entry}
+                                colors={matrixColumns}
+                                basePlaceholder={basePricePlaceholder}
+                                isFirst={i === 0}
+                                onToggleRowStock={() => toggleSizeStock(entry.size)}
+                                onRowPriceChange={raw => updateSizePrice(entry.size, raw)}
+                                onToggleCellStock={color => toggleSizeVariantStock(entry.size, color)}
+                                onCellPriceChange={(color, raw) => updateSizeVariantPrice(entry.size, color, raw)}
+                                onRemove={() => removeSizeRow(entry.size)}
+                            />
+                        ))}
                     </div>
                     <div className="flex gap-2 mb-5">
                         <input
@@ -640,56 +850,22 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                         {gemSizes.length === 0 && (
                             <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">No gem sizes added yet.</div>
                         )}
-                        {gemSizes.map(({ gem_size, in_stock, price: gemPrice }, i) => {
-                            const baseNum = parseFloat(price);
-                            const basePlaceholder = Number.isFinite(baseNum) && baseNum > 0 ? baseNum.toFixed(2) : '0.00';
-                            return (
-                                <div
-                                    key={gem_size}
-                                    className={`flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2.5 ${i > 0 ? 'border-t border-border-lt' : ''}`}
-                                >
-                                    <span className="flex-1 min-w-0 text-[0.85rem] text-ink font-medium truncate">{gem_size} mm</span>
-
-                                    <div className="relative flex-shrink-0">
-                                        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[0.75rem] text-ink-3">$</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            inputMode="decimal"
-                                            value={gemPrice == null ? '' : String(gemPrice)}
-                                            onChange={e => updateGemSizePrice(gem_size, e.target.value)}
-                                            placeholder={basePlaceholder}
-                                            aria-label={`Price for gem size ${gem_size} mm`}
-                                            title="Leave blank to use the product's base price"
-                                            className="w-[88px] sm:w-24 pl-5 pr-2 py-1.5 text-[0.78rem] text-ink bg-transparent border border-border-lt rounded-sm focus:border-ink focus:outline-none transition-colors"
-                                        />
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleGemSizeStock(gem_size)}
-                                        className={`px-3 py-1 text-[0.65rem] font-semibold tracking-[0.12em] uppercase rounded-full border transition-all flex-shrink-0 ${
-                                            in_stock
-                                                ? 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 hover:border-green-300'
-                                                : 'border-red-200 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-300'
-                                        }`}
-                                    >
-                                        {in_stock ? 'In Stock' : 'Out of Stock'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeGemSizeRow(gem_size)}
-                                        aria-label={`Remove gem size ${gem_size} mm`}
-                                        className="w-7 h-7 rounded-full text-ink-3 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all flex-shrink-0"
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            );
-                        })}
+                        {gemSizes.map((entry, i) => (
+                            <VariantRow
+                                key={entry.gem_size}
+                                label={`${entry.gem_size} mm`}
+                                noun="gem size"
+                                entry={entry}
+                                colors={matrixColumns}
+                                basePlaceholder={basePricePlaceholder}
+                                isFirst={i === 0}
+                                onToggleRowStock={() => toggleGemSizeStock(entry.gem_size)}
+                                onRowPriceChange={raw => updateGemSizePrice(entry.gem_size, raw)}
+                                onToggleCellStock={color => toggleGemVariantStock(entry.gem_size, color)}
+                                onCellPriceChange={(color, raw) => updateGemVariantPrice(entry.gem_size, color, raw)}
+                                onRemove={() => removeGemSizeRow(entry.gem_size)}
+                            />
+                        ))}
                     </div>
                     <div className="flex gap-2 mb-5">
                         <input

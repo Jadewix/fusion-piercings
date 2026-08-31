@@ -239,7 +239,37 @@ function deriveColorString(colorsArr) {
     return 'gold';
 }
 
-// Normalise an incoming sizes payload to [{size, in_stock, price}]
+// Parse a price-ish value. Returns null for blank, missing, or non-numeric —
+// which means "fall through to the next price level".
+function parsePrice(raw) {
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// Normalise a per-colour override map: { gold: {in_stock, price}, ... }.
+//
+// Lets one size be sold out in gold while still available in silver, and lets
+// the two carry different prices. The map is optional and may be partial — a
+// colour with no entry inherits the size's own in_stock/price, so product rows
+// written before this existed stay valid and need no migration.
+//
+// Returns undefined (not {}) when there is nothing to store, so we never write
+// an empty object into the JSONB for every size on every save.
+function normaliseVariantMap(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+    const out = {};
+    for (const [color, value] of Object.entries(raw)) {
+        if (!color || value == null || typeof value !== 'object') continue;
+        out[String(color)] = {
+            in_stock: value.in_stock !== false,
+            price: parsePrice(value.price),
+        };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
+// Normalise an incoming sizes payload to [{size, in_stock, price, variants?}]
 // price is optional; null/undefined means "use the product's base price".
 function normaliseSizes(raw) {
     if (!raw) return [{ size: 'One Size', in_stock: true, price: null }];
@@ -249,21 +279,18 @@ function normaliseSizes(raw) {
     if (!Array.isArray(parsed) || parsed.length === 0) return [{ size: 'One Size', in_stock: true, price: null }];
     return parsed.map(s => {
         if (typeof s === 'string') return { size: s, in_stock: true, price: null };
-        const rawPrice = s.price;
-        let price = null;
-        if (rawPrice != null && rawPrice !== '') {
-            const n = Number(rawPrice);
-            if (Number.isFinite(n) && n >= 0) price = n;
-        }
-        return {
+        const entry = {
             size: String(s.size),
             in_stock: s.in_stock !== false,
-            price,
+            price: parsePrice(s.price),
         };
+        const variants = normaliseVariantMap(s.variants);
+        if (variants) entry.variants = variants;
+        return entry;
     });
 }
 
-// Normalise an incoming gem_sizes payload to [{gem_size, in_stock, price}].
+// Normalise an incoming gem_sizes payload to [{gem_size, in_stock, price, variants?}].
 // gem_size is a size in mm (stored as a string label, e.g. "2.5").
 // Unlike sizes, gem sizes are optional — an empty array means the product
 // simply has no gem-size variants.
@@ -277,17 +304,14 @@ function normaliseGemSizes(raw) {
         .map(g => {
             if (typeof g === 'string') return { gem_size: g, in_stock: true, price: null };
             if (!g || g.gem_size == null) return null;
-            const rawPrice = g.price;
-            let price = null;
-            if (rawPrice != null && rawPrice !== '') {
-                const n = Number(rawPrice);
-                if (Number.isFinite(n) && n >= 0) price = n;
-            }
-            return {
+            const entry = {
                 gem_size: String(g.gem_size),
                 in_stock: g.in_stock !== false,
-                price,
+                price: parsePrice(g.price),
             };
+            const variants = normaliseVariantMap(g.variants);
+            if (variants) entry.variants = variants;
+            return entry;
         })
         .filter(Boolean);
 }
