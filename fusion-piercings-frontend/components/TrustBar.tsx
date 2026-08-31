@@ -11,8 +11,8 @@ export default function TrustBar() {
     <div className="overflow-hidden border-t border-b border-border bg-bg-warm py-3.5">
       <div className="flex gap-12 whitespace-nowrap animate-marquee w-max hover:[animation-play-state:paused]">
         {doubled.map((item, i) => (
-          <span key={i} className="text-[0.65rem] font-medium tracking-[0.2em] uppercase text-ink-3">
-            ✦ {item}
+          <span key={i} className="text-[0.68rem] font-medium tracking-[0.08em] uppercase text-ink-2">
+            {item}
           </span>
         ))}
       </div>

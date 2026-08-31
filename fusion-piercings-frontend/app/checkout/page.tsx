@@ -124,7 +124,7 @@ export default function CheckoutPage() {
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                 </div>
-                <h1 className="font-serif text-3xl font-semibold text-ink mb-4 text-center">Order Confirmed</h1>
+                <h1 className="font-serif text-3xl text-ink mb-4 text-center">Order Confirmed</h1>
                 {orderId && (
                     <p className="text-[0.75rem] font-semibold tracking-[0.14em] uppercase text-ink-3 mb-2 text-center">
                         Order #{orderId}
@@ -147,7 +147,7 @@ export default function CheckoutPage() {
 
                 {/* Left Column: Shipping Form */}
                 <div className="lg:col-span-7">
-                    <h1 className="font-serif text-[2rem] font-semibold text-ink mb-8">Checkout</h1>
+                    <h1 className="font-serif text-[2rem] text-ink mb-8">Checkout</h1>
 
                     <form onSubmit={handleSubmit}>
                         <h2 className="text-[0.7rem] font-semibold tracking-[0.16em] uppercase text-ink-3 mb-6 border-b border-border-lt pb-3">

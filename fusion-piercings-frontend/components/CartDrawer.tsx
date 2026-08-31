@@ -31,7 +31,7 @@ export default function CartDrawer() {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-7 py-6 border-b border-border-lt flex-shrink-0">
-            <h3 className="font-serif text-[1.2rem] font-semibold text-ink">
+            <h3 className="font-serif text-[1.2rem] text-ink">
               Your Cart{' '}
               {count > 0 && <span className="font-sans text-[0.8rem] text-ink-3 font-normal">({count})</span>}
             </h3>

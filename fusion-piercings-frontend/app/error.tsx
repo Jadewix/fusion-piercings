@@ -18,10 +18,10 @@ export default function Error({
 
   return (
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-6 text-center">
-      <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-6 section-label-line">
+      <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-6">
         Something went wrong
       </span>
-      <h1 className="font-serif text-[clamp(1.8rem,4vw,2.8rem)] font-semibold text-ink mb-4">
+      <h1 className="font-serif text-[clamp(1.8rem,4vw,2.8rem)] text-ink mb-4">
         We hit an unexpected error
       </h1>
       <p className="text-ink-2 text-sm leading-relaxed max-w-md mb-8">

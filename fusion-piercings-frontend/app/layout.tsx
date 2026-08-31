@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Playfair_Display, Montserrat } from 'next/font/google';
+import { DM_Sans, Instrument_Serif } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import { GoogleAnalytics } from '@next/third-parties/google'; // 👈 1. Added Import
@@ -8,25 +8,22 @@ import { organizationSchema, localBusinessSchema } from '@/lib/seo';
 import { SITE_URL } from '@/lib/site';
 import './globals.css';
 
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-dm-sans',
   display: 'swap',
 });
 
-const montserrat = Montserrat({
+// Instrument Serif ships a single weight (400) — there is no bold cut. Headings
+// carry themselves on size and the face's own stroke contrast, so never pair
+// this with font-semibold/font-bold: the browser would synthesise a smeared
+// fake bold instead.
+const instrumentSerif = Instrument_Serif({
   subsets: ['latin'],
-  variable: '--font-montserrat',
+  variable: '--font-instrument-serif',
   display: 'swap',
-  weight: ['300', '400'],
-});
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-playfair',
-  display: 'swap',
+  weight: '400',
   style: ['normal', 'italic'],
-  weight: ['400', '600', '700'],
 });
 
 export const metadata: Metadata = {
@@ -63,7 +60,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-      <html lang="en" className={`${inter.variable} ${playfair.variable} ${montserrat.variable}`}>
+      <html lang="en" className={`${dmSans.variable} ${instrumentSerif.variable}`}>
       <body>
       <JsonLd data={[organizationSchema(), localBusinessSchema()]} />
       <CartProvider>{children}</CartProvider>

@@ -56,15 +56,6 @@ export default function Hero() {
       id="home"
       className="relative bg-bg overflow-hidden pt-24 pb-16 lg:pb-20"
     >
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-[70%] pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse 60% 70% at 50% 30%, rgba(184,150,90,0.07) 0%, transparent 70%)',
-        }}
-      />
-
       <div className="relative z-10 lg:max-w-[1240px] lg:mx-auto lg:px-8 lg:min-h-[calc(100vh-8rem)]">
 
         <div className="flex flex-col items-center lg:grid lg:grid-cols-2 lg:gap-16 lg:items-center lg:h-full lg:min-h-[calc(100vh-8rem)]">
@@ -76,18 +67,16 @@ export default function Hero() {
               className="relative w-full will-change-transform"
               style={{ transform: 'translate3d(0,0,0)' }}
             >
-              <div className="animate-badge-float">
-                <div className="relative w-full aspect-[3/2] sm:aspect-[16/9] lg:aspect-[4/5] overflow-hidden lg:rounded-[24px] lg:border lg:border-border-lt shadow-md bg-bg-warm">
-                  <Image
-                    src="/img/Hero-img.webp"
-                    alt="Fusion Piercings jewelry"
-                    fill
-                    priority
-                    quality={72}
-                    sizes="(max-width: 1024px) 100vw, 440px"
-                    className="object-cover object-center select-none"
-                  />
-                </div>
+              <div className="relative w-full aspect-[3/2] sm:aspect-[16/9] lg:aspect-[4/5] overflow-hidden lg:rounded-[2px] lg:border lg:border-border-lt bg-bg-warm">
+                <Image
+                  src="/img/Hero-img.webp"
+                  alt="Fusion Piercings jewelry"
+                  fill
+                  priority
+                  quality={72}
+                  sizes="(max-width: 1024px) 100vw, 440px"
+                  className="object-cover object-center select-none"
+                />
               </div>
             </div>
           </div>
@@ -95,17 +84,11 @@ export default function Hero() {
           {/* ── TEXT CONTENT — below image on mobile, left of image on desktop ── */}
           <div className="order-2 lg:order-1 w-full mx-auto max-w-[760px] lg:max-w-none px-4 sm:px-8 lg:px-0 mt-10 lg:mt-0 flex flex-col items-center lg:items-start text-center lg:text-left">
 
-            <span className="inline-flex items-center gap-2.5 text-[0.7rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-6 section-label-line">
+            <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-5">
               Est. 2023 — Premium Body Jewelry
             </span>
 
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-px w-14 bg-gradient-to-r from-transparent to-gold/50" />
-              <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
-              <div className="h-px w-14 bg-gradient-to-l from-transparent to-gold/50" />
-            </div>
-
-            <h1 className="font-serif text-[clamp(1.4rem,3vw,2.2rem)] font-semibold text-ink leading-[1.25] max-w-xl mb-8">
+            <h1 className="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] text-ink leading-[1.22] max-w-xl mb-8">
               At Fusion, we turn piercing into a luxury experience through an individualized approach and unparalleled standards for health and safety.
             </h1>
 

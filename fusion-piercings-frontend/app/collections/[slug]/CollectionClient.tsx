@@ -54,10 +54,10 @@ export default function CollectionClient({ title, materialTag, showSubcategoryTa
       <main className="pt-[72px]">
         {/* Collection header */}
         <div className="max-w-[1280px] mx-auto px-4 sm:px-8 pt-14 pb-2">
-          <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-3 section-label-line">
+          <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-3">
             Collection
           </span>
-          <h1 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] font-semibold text-ink">
+          <h1 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] text-ink">
             {title}
           </h1>
 

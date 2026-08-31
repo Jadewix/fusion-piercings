@@ -285,7 +285,7 @@ export default function AdminDashboard() {
 
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10 sm:mb-14">
                     <div>
-                        <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-3 section-label-line">
+                        <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-3">
                             Management
                         </span>
 
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
                                 onClick={() => setDashDropdownOpen(o => !o)}
                                 className="flex items-center gap-3 group"
                             >
-                                <h1 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] font-semibold text-ink group-hover:opacity-80 transition-opacity">
+                                <h1 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] text-ink group-hover:opacity-80 transition-opacity">
                                     {currentDash.title}
                                 </h1>
                                 <svg

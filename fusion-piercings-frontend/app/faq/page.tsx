@@ -18,22 +18,13 @@ export default function FaqPage() {
 
                 {/* ── Hero ─────────────────────────────────────────────── */}
                 <section className="relative pt-32 pb-16 sm:pt-40 sm:pb-20 px-4 sm:px-8 text-center overflow-hidden">
-                    <div
-                        className="absolute inset-0 pointer-events-none"
-                        style={{ background: 'radial-gradient(ellipse 65% 65% at 50% 50%, rgba(184,150,90,0.07) 0%, transparent 70%)' }}
-                    />
                     <div className="relative z-10 max-w-[640px] mx-auto">
-                        <span className="inline-flex items-center gap-2.5 text-[0.68rem] font-semibold tracking-[0.22em] uppercase text-gold-dk mb-6 section-label-line">
+                        <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-6">
                             Questions &amp; Answers
                         </span>
-                        <h1 className="font-serif text-[clamp(2.2rem,5vw,3.6rem)] font-semibold text-ink leading-[1.15] mb-5">
+                        <h1 className="font-serif text-[clamp(2.2rem,5vw,3.6rem)] text-ink leading-[1.15] mb-5">
                             Piercing FAQ
                         </h1>
-                        <div className="flex items-center justify-center gap-3 mb-6">
-                            <div className="h-px w-14 bg-gradient-to-r from-transparent to-gold/50" />
-                            <div className="w-1.5 h-1.5 rounded-full bg-gold/50" />
-                            <div className="h-px w-14 bg-gradient-to-l from-transparent to-gold/50" />
-                        </div>
                         <p className="text-[clamp(0.88rem,1.4vw,1rem)] text-ink-2 leading-[1.9] font-light max-w-md mx-auto">
                             Clear answers about piercing pain, healing times, jewelry materials, and aftercare.
                         </p>
@@ -60,7 +51,7 @@ export default function FaqPage() {
                 {/* ── CTA ──────────────────────────────────────────────── */}
                 <section className="py-16 sm:py-24 px-4 sm:px-8 text-center bg-bg-warm border-t border-b border-border">
                     <div className="max-w-[500px] mx-auto">
-                        <h2 className="font-serif text-[clamp(1.5rem,3vw,2.2rem)] font-semibold text-ink mb-4">
+                        <h2 className="font-serif text-[clamp(1.5rem,3vw,2.2rem)] text-ink mb-4">
                             Still have a question?
                         </h2>
                         <p className="text-[0.88rem] text-ink-2 leading-[1.8] font-light mb-8">

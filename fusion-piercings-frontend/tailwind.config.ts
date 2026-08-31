@@ -31,18 +31,14 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans:  ['var(--font-inter)',     'system-ui', 'sans-serif'],
-        serif: ['var(--font-playfair)', 'Georgia',   'serif'],
+        sans:  ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
+        // Single-weight display face — see app/layout.tsx. Do not add
+        // font-semibold/font-bold on top of it.
+        serif: ['var(--font-instrument-serif)', 'Georgia', 'serif'],
         logo:  ['Joane', 'Georgia', 'serif'],
-        logo2: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
       },
       animation: {
         'marquee':            'marquee 30s linear infinite',
-        'ring-glow':          'ring-glow 4s ease-in-out infinite alternate',
-        'ring-spin':          'ring-spin-slow 30s linear infinite',
-        'ring-spin-reverse':  'ring-spin-slow 18s linear infinite reverse',
-        'badge-float':        'badge-float 4s ease-in-out infinite alternate',
-        'badge-float-delay':  'badge-float 4s ease-in-out 1.5s infinite alternate',
         'modal-enter':        'modal-enter 0.4s cubic-bezier(0.34,1.4,0.64,1) forwards',
         'slide-in':           'slide-in 0.38s cubic-bezier(0.4,0,0.2,1) forwards',
         'fade-in':            'fade-in 0.3s ease forwards',
@@ -51,18 +47,6 @@ const config: Config = {
         marquee: {
           from: { transform: 'translateX(0)' },
           to:   { transform: 'translateX(-50%)' },
-        },
-        'ring-glow': {
-          from: { boxShadow: '0 0 24px rgba(184,150,90,0.12),0 0 48px rgba(184,150,90,0.05)' },
-          to:   { boxShadow: '0 0 40px rgba(184,150,90,0.22),0 0 80px rgba(184,150,90,0.10)' },
-        },
-        'ring-spin-slow': {
-          from: { transform: 'rotate(0deg)' },
-          to:   { transform: 'rotate(360deg)' },
-        },
-        'badge-float': {
-          from: { transform: 'translateY(0)' },
-          to:   { transform: 'translateY(-8px)' },
         },
         'modal-enter': {
           from: { opacity: '0', transform: 'translateY(28px) scale(0.96)' },
