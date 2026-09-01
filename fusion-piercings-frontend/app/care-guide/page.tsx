@@ -23,7 +23,7 @@ export default function CareGuidePage() {
             Care &amp; Aftercare
           </span>
 
-          <h1 className="font-serif text-[clamp(2.2rem,5vw,3.4rem)] text-ink leading-[1.15] mb-5">
+          <h1 className="text-[clamp(2.2rem,5vw,3.4rem)] text-ink leading-[1.15] mb-5">
             Care Guide<br />Coming Soon
           </h1>
 

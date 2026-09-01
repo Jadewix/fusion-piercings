@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { DM_Sans, Instrument_Serif } from 'next/font/google';
+import { Jost } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import { GoogleAnalytics } from '@next/third-parties/google'; // 👈 1. Added Import
@@ -8,22 +8,14 @@ import { organizationSchema, localBusinessSchema } from '@/lib/seo';
 import { SITE_URL } from '@/lib/site';
 import './globals.css';
 
-const dmSans = DM_Sans({
+// The site runs on a single family. Headings, body, nav and labels are all
+// Jost, differentiated by size, weight and letterspacing rather than by
+// switching typeface — mixing a display serif with a separate body sans is
+// what made the previous pairing read as two unrelated voices.
+const jost = Jost({
   subsets: ['latin'],
-  variable: '--font-dm-sans',
+  variable: '--font-jost',
   display: 'swap',
-});
-
-// Instrument Serif ships a single weight (400) — there is no bold cut. Headings
-// carry themselves on size and the face's own stroke contrast, so never pair
-// this with font-semibold/font-bold: the browser would synthesise a smeared
-// fake bold instead.
-const instrumentSerif = Instrument_Serif({
-  subsets: ['latin'],
-  variable: '--font-instrument-serif',
-  display: 'swap',
-  weight: '400',
-  style: ['normal', 'italic'],
 });
 
 export const metadata: Metadata = {
@@ -60,7 +52,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-      <html lang="en" className={`${dmSans.variable} ${instrumentSerif.variable}`}>
+      <html lang="en" className={`${jost.variable}`}>
       <body>
       <JsonLd data={[organizationSchema(), localBusinessSchema()]} />
       <CartProvider>{children}</CartProvider>

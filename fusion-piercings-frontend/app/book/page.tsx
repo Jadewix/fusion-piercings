@@ -136,7 +136,7 @@ export default function BookAppointmentPage() {
                         <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-6">
                             Appointments
                         </span>
-                        <h1 className="font-serif text-[clamp(2.2rem,5vw,3.6rem)] text-ink leading-[1.15] mb-5">
+                        <h1 className="text-[clamp(2.2rem,5vw,3.6rem)] text-ink leading-[1.15] mb-5">
                             Book an Appointment
                         </h1>
                         <p className="text-[clamp(0.88rem,1.4vw,1rem)] text-ink-2 leading-[1.9] font-light max-w-md mx-auto">
@@ -157,7 +157,7 @@ export default function BookAppointmentPage() {
                                         <polyline points="20 6 9 17 4 12" />
                                     </svg>
                                 </div>
-                                <h2 className="font-serif text-[1.8rem] text-ink mb-4">
+                                <h2 className="text-[1.8rem] text-ink mb-4">
                                     You're All Set!
                                 </h2>
                                 <p className="text-ink-2 text-[0.9rem] leading-[1.8] mb-8 max-w-sm mx-auto">

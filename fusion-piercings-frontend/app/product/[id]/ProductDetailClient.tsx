@@ -121,7 +121,7 @@ export default function ProductDetailClient({ productId }: Props) {
   if (loading) {
     return (
         <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-24 text-center">
-          <p className="text-ink-2 font-serif text-xl animate-pulse">Loading...</p>
+          <p className="text-ink-2 text-xl animate-pulse">Loading...</p>
         </div>
     );
   }
@@ -288,10 +288,10 @@ export default function ProductDetailClient({ productId }: Props) {
             )}
 
             <div className="flex items-start justify-between gap-6 mb-3">
-              <h1 className="font-serif text-[clamp(1.6rem,3vw,2.2rem)] text-ink leading-tight">
+              <h1 className="text-[clamp(1.6rem,3vw,2.2rem)] text-ink leading-tight">
                 {product.name}
               </h1>
-              <span className="font-serif text-[1.6rem] text-ink whitespace-nowrap leading-none mt-1">
+              <span className="text-[1.6rem] text-ink whitespace-nowrap leading-none mt-1">
               ${formattedPrice}
             </span>
             </div>

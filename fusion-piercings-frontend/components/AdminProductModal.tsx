@@ -604,7 +604,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             <div className="relative w-full max-w-[560px] bg-bg-card rounded-[20px] overflow-hidden shadow-xl animate-modal-enter flex flex-col max-h-[90vh]">
 
                 <div className="px-5 sm:px-7 pt-6 pb-4 border-b border-border-lt flex justify-between items-center bg-bg flex-shrink-0">
-                    <h2 className="font-serif text-[1.5rem] text-ink leading-tight">
+                    <h2 className="text-[1.5rem] text-ink leading-tight">
                         {isEditing ? 'Edit Product' : 'Add New Product'}
                     </h2>
                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink/5 flex items-center justify-center text-ink-2 hover:bg-ink/10 hover:text-ink transition-all">

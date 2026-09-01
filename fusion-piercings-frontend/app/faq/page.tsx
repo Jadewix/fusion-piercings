@@ -22,7 +22,7 @@ export default function FaqPage() {
                         <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-6">
                             Questions &amp; Answers
                         </span>
-                        <h1 className="font-serif text-[clamp(2.2rem,5vw,3.6rem)] text-ink leading-[1.15] mb-5">
+                        <h1 className="text-[clamp(2.2rem,5vw,3.6rem)] text-ink leading-[1.15] mb-5">
                             Piercing FAQ
                         </h1>
                         <p className="text-[clamp(0.88rem,1.4vw,1rem)] text-ink-2 leading-[1.9] font-light max-w-md mx-auto">
@@ -51,7 +51,7 @@ export default function FaqPage() {
                 {/* ── CTA ──────────────────────────────────────────────── */}
                 <section className="py-16 sm:py-24 px-4 sm:px-8 text-center bg-bg-warm border-t border-b border-border">
                     <div className="max-w-[500px] mx-auto">
-                        <h2 className="font-serif text-[clamp(1.5rem,3vw,2.2rem)] text-ink mb-4">
+                        <h2 className="text-[clamp(1.5rem,3vw,2.2rem)] text-ink mb-4">
                             Still have a question?
                         </h2>
                         <p className="text-[0.88rem] text-ink-2 leading-[1.8] font-light mb-8">

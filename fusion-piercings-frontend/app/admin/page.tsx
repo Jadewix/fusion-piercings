@@ -266,7 +266,7 @@ export default function AdminDashboard() {
     if (loading && !inventory && !inventoryError) {
         return (
             <div className="min-h-screen bg-bg flex items-center justify-center">
-                <p className="text-ink-2 font-serif text-xl animate-pulse">Loading Dashboard...</p>
+                <p className="text-ink-2 text-xl animate-pulse">Loading Dashboard...</p>
             </div>
         );
     }
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
                                 onClick={() => setDashDropdownOpen(o => !o)}
                                 className="flex items-center gap-3 group"
                             >
-                                <h1 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] text-ink group-hover:opacity-80 transition-opacity">
+                                <h1 className="text-[clamp(1.8rem,3vw,2.8rem)] text-ink group-hover:opacity-80 transition-opacity">
                                     {currentDash.title}
                                 </h1>
                                 <svg
@@ -479,7 +479,7 @@ export default function AdminDashboard() {
                 {dashboardView === 'orders' && (
                     <section ref={ordersSectionRef} className="mb-12 scroll-mt-24">
                         {ordersLoading && orders.length === 0 ? (
-                            <p className="text-ink-2 font-serif text-lg animate-pulse">Loading Orders...</p>
+                            <p className="text-ink-2 text-lg animate-pulse">Loading Orders...</p>
                         ) : ordersError ? (
                             <ErrorState message={offlineOr('Failed to load orders.')} onRetry={() => fetchOrders(ordersPage)} />
                         ) : orders.length === 0 ? (

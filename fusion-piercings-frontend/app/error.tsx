@@ -21,7 +21,7 @@ export default function Error({
       <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-6">
         Something went wrong
       </span>
-      <h1 className="font-serif text-[clamp(1.8rem,4vw,2.8rem)] text-ink mb-4">
+      <h1 className="text-[clamp(1.8rem,4vw,2.8rem)] text-ink mb-4">
         We hit an unexpected error
       </h1>
       <p className="text-ink-2 text-sm leading-relaxed max-w-md mb-8">

@@ -263,7 +263,7 @@ export default function Shop({
             <span className="text-[0.7rem] font-medium tracking-[0.08em] uppercase text-gold-dk mb-3">
               {eyebrow}
             </span>
-                <h2 className="font-serif text-[clamp(1.8rem,3vw,2.8rem)] text-ink">
+                <h2 className="text-[clamp(1.8rem,3vw,2.8rem)] text-ink">
                   {title}
                 </h2>
               </div>
@@ -289,7 +289,7 @@ export default function Shop({
                 />
                     <div className="min-w-0 flex-1">
                       <p
-                          className="text-[0.72rem] sm:text-[0.92rem] font-semibold sm:font-normal font-sans sm:font-serif leading-tight tracking-tight sm:tracking-normal break-words"
+                          className="text-[0.72rem] sm:text-[0.92rem] font-semibold leading-tight tracking-tight sm:tracking-normal break-words"
                           style={isActive ? { color: colorItem.activeText } : { color: 'var(--color-ink)' }}
                       >
                         {colorItem.label}

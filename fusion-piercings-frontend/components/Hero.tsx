@@ -88,7 +88,7 @@ export default function Hero() {
               Est. 2023 — Premium Body Jewelry
             </span>
 
-            <h1 className="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] text-ink leading-[1.22] max-w-xl mb-8">
+            <h1 className="text-[clamp(1.5rem,2.9vw,2.15rem)] text-ink leading-[1.3] max-w-2xl mb-8">
               At Fusion, we turn piercing into a luxury experience through an individualized approach and unparalleled standards for health and safety.
             </h1>
 

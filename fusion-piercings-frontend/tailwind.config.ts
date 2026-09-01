@@ -31,10 +31,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans:  ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
-        // Single-weight display face — see app/layout.tsx. Do not add
-        // font-semibold/font-bold on top of it.
-        serif: ['var(--font-instrument-serif)', 'Georgia', 'serif'],
+        sans:  ['var(--font-jost)', 'system-ui', 'sans-serif'],
+        // Single-family site — see app/layout.tsx. `serif` is aliased to the
+        // same face on purpose so a stray font-serif can't quietly drop a
+        // Georgia heading back into the page.
+        serif: ['var(--font-jost)', 'system-ui', 'sans-serif'],
         logo:  ['Joane', 'Georgia', 'serif'],
       },
       animation: {
