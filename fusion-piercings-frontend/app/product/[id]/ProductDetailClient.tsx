@@ -12,6 +12,7 @@ import {
   coerceColors, coerceGemSizes, coerceSizes,
   isColorAvailable, isProductSoldOut, isVariantInStock, resolvePrice, variantPrice,
 } from '@/lib/variants';
+import { parseDescription } from '@/lib/description';
 
 interface Props {
   productId: string;
@@ -90,6 +91,10 @@ export default function ProductDetailClient({ productId }: Props) {
   const colors = useMemo(
       () => coerceColors(product?.colors, product?.color),
       [product?.colors, product?.color]
+  );
+  const descriptionItems = useMemo(
+      () => parseDescription(product?.description),
+      [product?.description]
   );
   const images = useMemo(() => {
     if (!product) return [];
@@ -296,10 +301,24 @@ export default function ProductDetailClient({ productId }: Props) {
             </span>
             </div>
 
-            {product.description && (
+            {/* Descriptions are typed as a separator-run spec list in the admin
+                and get split into bullets here, so the formatting is right for
+                products that were saved long before this existed. Genuine prose
+                comes back as a single item and still renders as a paragraph. */}
+            {descriptionItems.length === 1 && (
                 <p className="text-[0.9rem] text-ink-2 leading-relaxed mb-7">
-                  {product.description}
+                  {descriptionItems[0]}
                 </p>
+            )}
+            {descriptionItems.length > 1 && (
+                <ul className="mb-7 space-y-1.5">
+                  {descriptionItems.map((item, i) => (
+                      <li key={i} className="relative pl-4 text-[0.9rem] text-ink-2 leading-relaxed">
+                        <span aria-hidden="true" className="absolute left-0 top-[0.62em] w-1 h-1 rounded-full bg-gold" />
+                        {item}
+                      </li>
+                  ))}
+                </ul>
             )}
 
             {/* Color selector (only for "both" products) */}

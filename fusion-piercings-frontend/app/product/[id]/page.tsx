@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { descriptionToText } from '@/lib/description';
 import Nav from '@/components/Nav';
 import CartDrawer from '@/components/CartDrawer';
 import Footer from '@/components/Footer';
@@ -35,7 +36,9 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   if (!product) {
     return { title: 'Product', description: 'Browse premium body jewelry at Fusion Piercings.' };
   }
-  const desc = (product.description || `${product.name} — premium body jewelry from Fusion Piercings.`).slice(0, 200);
+  // Flattened through the same cleanup the page uses, so the raw separator
+  // run never reaches the search snippet.
+  const desc = (descriptionToText(product.description) || `${product.name} — premium body jewelry from Fusion Piercings.`).slice(0, 200);
   const img = product.image_url || product.image_urls?.[0];
   return {
     title: product.name,

@@ -1,5 +1,6 @@
 // lib/seo.ts — JSON-LD schema builders for structured data / answer engines (AEO).
 import type { Product } from './types';
+import { descriptionToText } from '@/lib/description';
 import { SITE_URL } from './site';
 import { BUSINESS, isFilled } from './business';
 
@@ -79,7 +80,7 @@ export function productSchema(product: Product, url: string) {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name,
-    description: product.description || `${product.name} — premium body jewelry from ${SITE_NAME}.`,
+    description: descriptionToText(product.description) || `${product.name} — premium body jewelry from ${SITE_NAME}.`,
     image: images,
     brand: { '@type': 'Brand', name: SITE_NAME },
     offers: {
