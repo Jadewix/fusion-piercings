@@ -4,6 +4,7 @@ import TrustBar from '@/components/TrustBar';
 import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
 import ShopSection from '@/components/ShopSection';
+import AftercareSection from '@/components/AftercareSection';
 import Toast from '@/components/Toast';
 import type { Metadata } from 'next';
 
@@ -24,6 +25,7 @@ export default function Home() {
         <Hero />
         <TrustBar />
         <ShopSection />
+        <AftercareSection />
       </main>
 
       <Footer />

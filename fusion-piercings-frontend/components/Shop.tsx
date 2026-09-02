@@ -7,8 +7,9 @@ import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import ProductCard from './ProductCard';
 import Pagination from '@/components/ui/Pagination';
 import { PageMeta } from '@/lib/pagination';
+import { AFTERCARE_CATEGORY, PLACEMENTS as PLACEMENT_SLUGS } from '@/lib/categories';
 
-const PLACEMENTS = ['all', 'ear', 'nose', 'belly', 'nipple'];
+const PLACEMENTS = ['all', ...PLACEMENT_SLUGS];
 const PAGE_SIZE = 20;
 
 type FilterKind = 'none' | 'color' | 'material_tag';
@@ -79,6 +80,15 @@ interface Props {
   title?: string;
   eyebrow?: string;
   hideHeader?: boolean;
+  /**
+   * Hide the metal and placement filter rows. Set for the aftercare grid,
+   * whose products have neither attribute.
+   */
+  hideFilters?: boolean;
+  /** Copy shown when the grid comes back empty. */
+  emptyMessage?: string;
+  /** Section background, so stacked grids on one page read as separate bands. */
+  background?: 'default' | 'warm';
 }
 
 function SkeletonCard() {
@@ -101,6 +111,9 @@ export default function Shop({
                                title = 'Shop the Collection',
                                eyebrow = 'The Collection',
                                hideHeader = false,
+                               hideFilters = false,
+                               emptyMessage = 'No products in this category yet.',
+                               background = 'default',
                              }: Props) {
   const [activeColor, setActiveColor]           = useState<string>(COLORS[0].key);
   const [internalCategory, setInternalCategory] = useState<string>('all');
@@ -122,11 +135,17 @@ export default function Shop({
   // page, and scroll position (keyed by URL). When they come back — via the
   // browser Back button or the product page's Back button — we restore all
   // of it so they land exactly where they left off.
+  //
+  // The section id is part of the key because the home page stacks two grids:
+  // sharing one key, whichever mounted first would consume the other's
+  // snapshot and adopt its category.
   const [pendingScroll, setPendingScroll] = useState<number | null>(null);
+  const contextKey = () =>
+    `fp_shop_ctx:${id}:${window.location.pathname}${window.location.search}`;
 
   const saveContext = () => {
     try {
-      const key = `fp_shop_ctx:${window.location.pathname}${window.location.search}`;
+      const key = contextKey();
       sessionStorage.setItem(key, JSON.stringify({
         color: activeColor,
         category: activeCategory,
@@ -142,7 +161,7 @@ export default function Shop({
   // default-state request when the restored state triggers a refetch.
   useEffect(() => {
     try {
-      const key = `fp_shop_ctx:${window.location.pathname}${window.location.search}`;
+      const key = contextKey();
       const raw = sessionStorage.getItem(key);
       if (!raw) return;
       sessionStorage.removeItem(key); // one-shot: fresh visits start clean
@@ -177,6 +196,13 @@ export default function Shop({
           limit:    String(PAGE_SIZE),
           category: activeCategory,
         });
+
+        // Aftercare products live in the same table but belong to their own
+        // section — keep them out of every jewelry view unless this grid IS
+        // the aftercare one.
+        if (activeCategory !== AFTERCARE_CATEGORY) {
+          params.set('exclude_category', AFTERCARE_CATEGORY);
+        }
 
         if (materialTag) {
           // Parent controls this section to a specific material — ignore user filter.
@@ -255,7 +281,11 @@ export default function Shop({
   const isInitialLoad = loading && products.length === 0;
 
   return (
-      <section id={id} ref={sectionRef} className="py-24 bg-bg scroll-mt-24">
+      <section
+          id={id}
+          ref={sectionRef}
+          className={`py-24 scroll-mt-24 ${background === 'warm' ? 'bg-bg-warm' : 'bg-bg'}`}
+      >
         <div className="max-w-[1280px] mx-auto px-4 sm:px-8">
 
           {!hideHeader && (
@@ -269,7 +299,7 @@ export default function Shop({
               </div>
           )}
 
-          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-8 w-full max-w-4xl ${materialTag ? 'hidden' : ''}`}>
+          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-8 w-full max-w-4xl ${materialTag || hideFilters ? 'hidden' : ''}`}>
             {COLORS.map(colorItem => {
               const isActive = activeColor === colorItem.key;
               return (
@@ -304,7 +334,7 @@ export default function Shop({
           </div>
 
           <div
-              className={`flex flex-wrap items-center gap-2 mb-12 ${materialTag ? 'hidden' : ''}`}
+              className={`flex flex-wrap items-center gap-2 mb-12 ${materialTag || hideFilters ? 'hidden' : ''}`}
               role="group"
               aria-label="Filter by placement"
           >
@@ -346,7 +376,7 @@ export default function Shop({
               </div>
           ) : products.length === 0 ? (
               <div className="py-20 text-center">
-                <p className="text-ink-2 text-sm">No products in this category yet.</p>
+                <p className="text-ink-2 text-sm">{emptyMessage}</p>
               </div>
           ) : (
               <>

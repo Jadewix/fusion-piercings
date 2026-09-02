@@ -5,6 +5,9 @@ import { useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
+import {
+    DELIVERY_CITIES, FREE_DELIVERY_CITY, calcDeliveryFee, isFreeDeliveryCity,
+} from '@/lib/delivery';
 
 export default function CheckoutPage() {
     const { cart, cartTotal, clearCart } = useCart();
@@ -19,6 +22,11 @@ export default function CheckoutPage() {
         address: '',
         building: ''
     });
+
+    // The picker's own value. `formData.city` still holds the town that gets
+    // saved and shown to the courier — for "Other" that's whatever the shopper
+    // types, so an order never arrives labelled just "Other".
+    const [cityChoice, setCityChoice] = useState('');
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
@@ -37,11 +45,23 @@ export default function CheckoutPage() {
     // Formatting helpers
 
 
-    const deliveryFee = cartTotal >= 75 ? 0 : 3.00; // Standard $3 delivery fee if under $75
+    // Zgharta ships free at any value; elsewhere it's free over the threshold.
+    // The server recomputes this from the same rule and its answer is the one
+    // that's charged, so this is purely what the shopper sees.
+    const deliveryFee = calcDeliveryFee(formData.city, cartTotal);
     const finalTotal = cartTotal + deliveryFee;
+    const isCustomCity = DELIVERY_CITIES.find(c => c.value === cityChoice)?.custom ?? false;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleCityChoice = (value: string) => {
+        setCityChoice(value);
+        const option = DELIVERY_CITIES.find(c => c.value === value);
+        // A named town fills the city straight through; "Other" clears it so
+        // the text box that appears starts empty rather than pre-filled.
+        setFormData(f => ({ ...f, city: option && !option.custom ? option.value : '' }));
     };
 
     // Validation helpers
@@ -180,8 +200,38 @@ export default function CheckoutPage() {
                                    className={`${inputClass} ${fieldErrors.phone ? 'border-red-400 focus:border-red-500' : ''}`}/>
                             {fieldErrors.phone && <p className="text-red-500 text-[0.72rem] mt-1.5">{fieldErrors.phone}</p>}
                         </div>
-                        <input required name="city" value={formData.city} onChange={handleChange}
-                               placeholder="City / Region" className={`${inputClass} mb-4`}/>
+                        <div className="mb-4">
+                            <select
+                                required
+                                name="cityChoice"
+                                value={cityChoice}
+                                onChange={e => handleCityChoice(e.target.value)}
+                                aria-label="City / Region"
+                                className={`${inputClass} ${cityChoice === '' ? 'text-ink-3' : ''}`}
+                            >
+                                <option value="" disabled>City / Region</option>
+                                {DELIVERY_CITIES.map(c => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                ))}
+                            </select>
+
+                            {isCustomCity && (
+                                <input
+                                    required
+                                    name="city"
+                                    value={formData.city}
+                                    onChange={handleChange}
+                                    placeholder="Which city?"
+                                    className={`${inputClass} mt-3`}
+                                />
+                            )}
+
+                            {isFreeDeliveryCity(formData.city) && (
+                                <p className="text-[0.72rem] text-green-600 mt-1.5">
+                                    Free delivery in {FREE_DELIVERY_CITY}.
+                                </p>
+                            )}
+                        </div>
                         <input required name="address" value={formData.address} onChange={handleChange}
                                placeholder="Street Address" className={`${inputClass} mb-4`}/>
                         <input name="building" value={formData.building} onChange={handleChange}

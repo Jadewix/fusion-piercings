@@ -7,6 +7,7 @@ import {
     VariantMap, VariantOverride,
 } from '@/lib/types';
 import { coerceSizes, coerceGemSizes, coerceColors, isProductSoldOut } from '@/lib/variants';
+import { AFTERCARE_CATEGORY, PLACEMENT_OPTIONS, isAftercare } from '@/lib/categories';
 
 interface Props {
     product?: Product | null;
@@ -224,6 +225,9 @@ interface PendingFile {
     previewUrl: string;
 }
 
+/** The API's stand-in for "this product has no real size variants". */
+const ONE_SIZE = 'One Size';
+
 export default function AdminProductModal({ product, onClose, onSave }: Props) {
     const isEditing = !!product;
 
@@ -231,17 +235,25 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
     const [price, setPrice]             = useState(product?.price?.toString() || '');
     const [description, setDescription] = useState(product?.description || '');
     const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
-        if (product?.categories && product.categories.length > 0) return [...product.categories];
-        return product?.category ? [product.category] : [];
+        const initial = product?.categories && product.categories.length > 0
+            ? [...product.categories]
+            : product?.category ? [product.category] : [];
+        // 'aftercare' is carried by the product-type toggle, not the placement
+        // picker — keeping it out here stops it rendering as a stray chip.
+        return initial.filter(c => c !== AFTERCARE_CATEGORY);
     });
     const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
     const categoryDropdownRef = useRef<HTMLDivElement>(null);
-    const PLACEMENT_OPTIONS: { value: string; label: string }[] = [
-        { value: 'ear',    label: 'Ear'    },
-        { value: 'nose',   label: 'Nose'   },
-        { value: 'belly',  label: 'Belly'  },
-        { value: 'nipple', label: 'Nipple' },
-    ];
+
+    // Aftercare products (sprays, saline, cleaning solutions) share this form
+    // but have none of the jewelry attributes — no metal, placement, bar size
+    // or gem size. The toggle swaps those fields for a plain availability
+    // switch and an optional size/volume list.
+    const [isAftercareProduct, setIsAftercareProduct] = useState(() => isAftercare(product));
+    const [aftercareInStock, setAftercareInStock] = useState(
+        () => Number(product?.stock_count) !== 0
+    );
+    const [newAftercareSize, setNewAftercareSize] = useState('');
     // Multi-select with per-color stock toggle. Persisted as a JSONB colors[]
     // and a derived single `color` value ('gold' | 'silver' | 'both') for the
     // legacy storefront filter.
@@ -274,6 +286,9 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
 
     const [sizes, setSizes] = useState<ProductSize[]>(coerceSizes(product?.sizes));
     const [newSizeLabel, setNewSizeLabel] = useState('');
+
+    // Real size/volume rows for an aftercare product, with the placeholder hidden.
+    const aftercareSizes = sizes.filter(s => s.size !== ONE_SIZE);
 
     const [gemSizes, setGemSizes] = useState<ProductGemSize[]>(coerceGemSizes(product?.gem_sizes));
     const [newGemSizeLabel, setNewGemSizeLabel] = useState('');
@@ -430,6 +445,21 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         setSizes(prev => prev.filter(s => s.size !== size));
     }
 
+    // Aftercare sizes are free text ("30ml", "Travel size") rather than a
+    // measurement in mm, so they get their own adder. "One Size" is the API's
+    // placeholder for a product with no real variants — never a choice the
+    // admin made, so it stays out of the list.
+    function addAftercareSizeRow() {
+        const label = newAftercareSize.trim();
+        if (!label) return;
+        if (sizes.some(s => s.size.toLowerCase() === label.toLowerCase())) {
+            setNewAftercareSize('');
+            return;
+        }
+        setSizes(prev => [...prev.filter(s => s.size !== ONE_SIZE), { size: label, in_stock: true }]);
+        setNewAftercareSize('');
+    }
+
     function toggleSizeStock(size: string) {
         setSizes(prev => prev.map(s => s.size === size ? { ...s, in_stock: !s.in_stock } : s));
     }
@@ -523,9 +553,11 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
         setError('');
 
         try {
-            if (sizes.length === 0) throw new Error('Please add at least one bar size.');
-            if (selectedColors.length === 0) throw new Error('Please pick at least one color.');
-            if (selectedCategories.length === 0) throw new Error('Please pick at least one placement.');
+            if (!isAftercareProduct) {
+                if (sizes.length === 0) throw new Error('Please add at least one bar size.');
+                if (selectedColors.length === 0) throw new Error('Please pick at least one color.');
+                if (selectedCategories.length === 0) throw new Error('Please pick at least one placement.');
+            }
             const totalImages = existingUrls.length + pendingFiles.length;
             if (totalImages === 0)        throw new Error('Please upload at least one image.');
             if (totalImages > MAX_IMAGES) throw new Error(`You can upload up to ${MAX_IMAGES} images per product.`);
@@ -533,28 +565,50 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             const slugs = selectedColors.map(c => c.color);
             const hasGold   = slugs.includes('gold');
             const hasSilver = slugs.includes('silver');
-            const colorPayload = hasGold && hasSilver ? 'both' : hasGold ? 'gold' : 'silver';
+
+            // Aftercare carries none of the jewelry axes: one category, no
+            // colours, no gem sizes, no material collection. The legacy `color`
+            // column is NOT NULL-ish downstream, so it still gets a value — it
+            // goes unused because aftercare is excluded from colour-filtered views.
+            const categoriesPayload = isAftercareProduct ? [AFTERCARE_CATEGORY] : selectedCategories;
+            const colorsPayload     = isAftercareProduct ? [] : selectedColors;
+            const colorPayload      = isAftercareProduct
+                ? 'gold'
+                : hasGold && hasSilver ? 'both' : hasGold ? 'gold' : 'silver';
 
             // Per-colour cells are only meaningful for colours the product still
             // offers, and only when there's more than one to distinguish.
-            const sizesPayload = showMatrix
+            const jewelrySizes = showMatrix
                 ? sizes.map(s => pruneVariants(s, slugs))
                 : sizes.map(s => pruneVariants(s, []));
-            const gemSizesPayload = showMatrix
-                ? gemSizes.map(g => pruneVariants(g, slugs))
-                : gemSizes.map(g => pruneVariants(g, []));
+
+            // With no size/volume rows, fall back to the placeholder so the
+            // product still has one sellable row to hang stock off.
+            const sizesPayload: ProductSize[] = isAftercareProduct
+                ? (aftercareSizes.length > 0
+                    ? aftercareSizes.map(s => pruneVariants(s, []))
+                    : [{ size: ONE_SIZE, in_stock: true, price: null }])
+                : jewelrySizes;
+
+            const gemSizesPayload = isAftercareProduct
+                ? []
+                : showMatrix
+                    ? gemSizes.map(g => pruneVariants(g, slugs))
+                    : gemSizes.map(g => pruneVariants(g, []));
+
+            const materialTagsPayload = isAftercareProduct ? [] : materialTags;
 
             const formData = new FormData();
             formData.append('name', name);
             formData.append('price', price);
             formData.append('description', description);
-            formData.append('category', selectedCategories[0]); // primary, kept in sync with categories[]
-            formData.append('categories', JSON.stringify(selectedCategories));
+            formData.append('category', categoriesPayload[0]); // primary, kept in sync with categories[]
+            formData.append('categories', JSON.stringify(categoriesPayload));
             formData.append('color', colorPayload);
-            formData.append('colors', JSON.stringify(selectedColors));
+            formData.append('colors', JSON.stringify(colorsPayload));
             formData.append('sizes', JSON.stringify(sizesPayload));
             formData.append('gem_sizes', JSON.stringify(gemSizesPayload));
-            formData.append('material_tags', JSON.stringify(materialTags));
+            formData.append('material_tags', JSON.stringify(materialTagsPayload));
 
             if (isEditing) formData.append('existing_image_urls', JSON.stringify(existingUrls));
 
@@ -581,7 +635,12 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             // The blanket stock_count flag now has to account for the matrix: a
             // product is only sold out when no colour has a buyable combination
             // left, not merely when every size row is toggled off.
-            const soldOut = isProductSoldOut(selectedColors, sizesPayload, gemSizesPayload);
+            // Aftercare has no colour axis, so the product-level switch is the
+            // master: off sells the whole thing out, on still defers to the
+            // individual size/volume rows when there are any.
+            const soldOut = isAftercareProduct
+                ? !aftercareInStock || !sizesPayload.some(s => s.in_stock)
+                : isProductSoldOut(selectedColors, sizesPayload, gemSizesPayload);
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -617,6 +676,34 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                 <form onSubmit={handleSubmit} className="px-5 sm:px-7 py-6 overflow-y-auto custom-scrollbar flex-1">
                     {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
+                    <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Product Type</label>
+                    <div className="grid grid-cols-2 gap-2 mb-5" role="group" aria-label="Product type">
+                        {([
+                            { value: false, label: 'Jewelry',  hint: 'Metal, placement & sizes' },
+                            { value: true,  label: 'Aftercare', hint: 'Sprays, saline & cleaners' },
+                        ] as const).map(opt => {
+                            const active = isAftercareProduct === opt.value;
+                            return (
+                                <button
+                                    key={opt.label}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => setIsAftercareProduct(opt.value)}
+                                    className={`px-4 py-2.5 rounded-sm border text-left transition-all ${
+                                        active
+                                            ? 'bg-ink border-ink text-bg'
+                                            : 'bg-transparent border-border-lt text-ink hover:border-ink'
+                                    }`}
+                                >
+                                    <span className="block text-[0.8rem] font-semibold leading-tight">{opt.label}</span>
+                                    <span className={`block text-[0.65rem] mt-0.5 ${active ? 'text-bg/70' : 'text-ink-3'}`}>
+                                        {opt.hint}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
                     {/* 👇 CHANGED TO RESPONSIVE GRID (1 col mobile, 2 col desktop) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -632,6 +719,10 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                     <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Description</label>
                     <textarea required value={description} onChange={e => setDescription(e.target.value)} className={`${inputClass} resize-none h-20`} placeholder="A seamless, everyday hoop..." />
 
+                    {/* Jewelry-only fields. Aftercare has no metal, placement,
+                        bar size, gem size or material collection. */}
+                    {!isAftercareProduct && (
+                    <>
                     {/* 👇 CHANGED TO RESPONSIVE GRID (1 col mobile, 2 col desktop) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -989,6 +1080,71 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
                             </div>
                         )}
                     </div>
+
+                    </>
+                    )}
+
+                    {isAftercareProduct && (
+                    <>
+                        <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Availability</label>
+                        <div className="flex items-center gap-3 border border-border-lt rounded-sm px-3 py-2.5 mb-5">
+                            <span className="flex-1 min-w-0 text-[0.85rem] text-ink font-medium truncate">
+                                This product
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setAftercareInStock(v => !v)}
+                                title="Turning this off marks the whole product out of stock"
+                                className={stockPillClass(aftercareInStock)}
+                            >
+                                {aftercareInStock ? 'In Stock' : 'Out of Stock'}
+                            </button>
+                        </div>
+
+                        <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-2">Size / Volume — Optional</label>
+                        <p className="text-[0.7rem] text-ink-3 mb-2">
+                            Only if the product comes in more than one size, e.g. 30ml and 60ml. Leave price blank to use the base price above.
+                        </p>
+                        <div className="border border-border-lt rounded-sm mb-4 overflow-hidden">
+                            {aftercareSizes.length === 0 && (
+                                <div className="px-4 py-3 text-[0.78rem] text-ink-3 italic">Sold as a single size.</div>
+                            )}
+                            {aftercareSizes.map((entry, i) => (
+                                <VariantRow
+                                    key={entry.size}
+                                    label={entry.size}
+                                    noun="size"
+                                    entry={entry}
+                                    colors={[]}
+                                    basePlaceholder={basePricePlaceholder}
+                                    isFirst={i === 0}
+                                    onToggleRowStock={() => toggleSizeStock(entry.size)}
+                                    onRowPriceChange={raw => updateSizePrice(entry.size, raw)}
+                                    onToggleCellStock={() => { /* no colours on aftercare */ }}
+                                    onCellPriceChange={() => { /* no colours on aftercare */ }}
+                                    onRemove={() => removeSizeRow(entry.size)}
+                                />
+                            ))}
+                        </div>
+                        <div className="flex gap-2 mb-5">
+                            <input
+                                type="text"
+                                value={newAftercareSize}
+                                onChange={e => setNewAftercareSize(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAftercareSizeRow(); } }}
+                                placeholder="Add a size, e.g. 30ml"
+                                className="flex-grow bg-transparent border border-border-lt rounded-sm px-4 py-2 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors"
+                            />
+                            <button
+                                type="button"
+                                onClick={addAftercareSizeRow}
+                                className="px-4 py-2 text-[0.7rem] font-semibold tracking-[0.12em] uppercase border border-ink text-ink rounded-sm hover:bg-ink hover:text-bg transition-all"
+                            >
+                                Add
+                            </button>
+                        </div>
+                    </>
+                    )}
 
                     <div className="flex items-baseline justify-between mb-2">
                         <label className="block text-[0.68rem] font-semibold tracking-[0.16em] uppercase text-ink-2">Product Images</label>

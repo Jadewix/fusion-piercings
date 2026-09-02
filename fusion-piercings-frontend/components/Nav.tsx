@@ -30,6 +30,7 @@ const SHOP_CATEGORIES: ShopCategory[] = [
 const NAV_LINKS = [
   { label: 'Home', href: '/#home', hasDropdown: false },
   { label: 'Shop', href: '/#shop', hasDropdown: true },
+  { label: 'Aftercare', href: '/#aftercare', hasDropdown: false },
   { label: 'Care Guide', href: '/care-guide', hasDropdown: false },
   { label: 'Book Appointment', href: '/book', hasDropdown: false },
 ];
@@ -52,7 +53,7 @@ export default function Nav() {
 
   useEffect(() => {
     if (pathname !== '/') return;
-    const ids = ['shop', 'home'];
+    const ids = ['shop', 'home', 'aftercare'];
     const observers: IntersectionObserver[] = [];
     ids.forEach(id => {
       const el = document.getElementById(id);

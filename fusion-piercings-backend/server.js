@@ -100,6 +100,46 @@ function uploadImages(req, res, next) {
     });
 }
 
+// --- DELIVERY PRICING ---
+//
+// Mirrors lib/delivery.ts on the frontend. Duplicated rather than shared
+// because the two run in separate deploys; if you change one, change the other.
+// The server recomputes the fee at checkout so the amount the courier collects
+// never comes from the browser.
+
+const FREE_DELIVERY_THRESHOLD = 75;   // free everywhere above this subtotal
+const STANDARD_DELIVERY_FEE   = 3;    // flat fee elsewhere below the threshold
+
+// Zgharta — the studio's own town — always ships free, at any order value.
+// Listed as normalised spellings because the city arrives as free text from
+// older clients and gets typed/transliterated inconsistently.
+const FREE_DELIVERY_CITIES = new Set(['zgharta', 'zghorta', 'zgarta', 'zghartaa', 'زغرتا']);
+
+// Reduce a city to a comparison key. Matching stays exact rather than
+// substring-based: the checkout sends a fixed dropdown value, and a loose match
+// would waive the fee for any address that merely mentions Zgharta.
+function normaliseCity(city) {
+    const lower = String(city || '').trim().toLowerCase();
+    // Latin key: NFD splits accents into combining marks, then dropping every
+    // non a-z character removes those marks along with spaces and punctuation,
+    // so "Zgharta", "ZGHARTA " and "zgharta." collapse to one key.
+    const latin = lower.normalize('NFD').replace(/[^a-z]/g, '');
+    // Non-Latin input (Arabic) leaves nothing behind - match it as typed.
+    return latin || lower;
+}
+
+function isFreeDeliveryCity(city) {
+    return FREE_DELIVERY_CITIES.has(normaliseCity(city));
+}
+
+/** The delivery fee for an order. Zgharta is always free. */
+function calcDeliveryFee(city, subtotal) {
+    if (isFreeDeliveryCity(city)) return 0;
+    const n = Number(subtotal);
+    if (Number.isFinite(n) && n >= FREE_DELIVERY_THRESHOLD) return 0;
+    return STANDARD_DELIVERY_FEE;
+}
+
 // --- PUBLIC ROUTES (For the Storefront) ---
 
 app.get('/api/products', async (req, res) => {
@@ -111,7 +151,7 @@ app.get('/api/products', async (req, res) => {
     if (limit > 100) limit = 100; // safety cap so a client can't request the whole table
 
     // CHANGED: Extract 'color' instead of 'metal'
-    const { color, category, material_tag } = req.query;
+    const { color, category, material_tag, exclude_category } = req.query;
 
     // --- Build WHERE clause from optional filters ---
     const conditions = [];
@@ -127,6 +167,19 @@ app.get('/api/products', async (req, res) => {
         // array, or in the legacy single-value `category` column for any rows that
         // haven't been backfilled yet.
         conditions.push(`($${params.length} = ANY(categories) OR category = $${params.length})`);
+    }
+    // Inverse of the filter above. The jewelry grid uses it to keep aftercare
+    // products out: they share the products table but have none of the metal /
+    // placement attributes the grid filters on, so they'd show up under every
+    // colour tab as unfiltered noise.
+    if (exclude_category) {
+        params.push(exclude_category);
+        // Both columns are COALESCEd: on a row with a NULL category the
+        // comparison would yield NULL, and NOT NULL is NULL — dropping a row
+        // that should have been kept.
+        conditions.push(
+            `NOT ($${params.length} = ANY(COALESCE(categories, '{}')) OR COALESCE(category, '') = $${params.length})`
+        );
     }
     if (material_tag) {
         params.push(material_tag);
@@ -652,6 +705,23 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Missing required delivery information.' });
     }
 
+    const safeSubtotal = Number(subtotal);
+    if (!Number.isFinite(safeSubtotal) || safeSubtotal < 0) {
+        return res.status(400).json({ error: 'Invalid order subtotal.' });
+    }
+
+    // The delivery fee is recomputed here rather than trusted from the request:
+    // it decides what the courier collects, and the browser is free to send
+    // anything. The client runs the same rule so the summary it shows matches.
+    const safeDeliveryFee = calcDeliveryFee(city, safeSubtotal);
+    const safeTotal = Math.round((safeSubtotal + safeDeliveryFee) * 100) / 100;
+
+    if (Number(deliveryFee) !== safeDeliveryFee) {
+        console.warn(
+            `Delivery fee mismatch for ${city}: client sent ${deliveryFee}, server charged ${safeDeliveryFee}`
+        );
+    }
+
     try {
         // 1a. Idempotency: if this exact submission was already saved, return it (no duplicate).
         if (idempotencyKey) {
@@ -667,7 +737,7 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
             `SELECT id FROM orders
              WHERE phone = $1 AND total_amount = $2 AND created_at > NOW() - INTERVAL '90 seconds'
              ORDER BY created_at DESC LIMIT 1`,
-            [phone, total]
+            [phone, safeTotal]
         );
         if (recent.rows.length > 0) {
             return res.status(200).json({ message: 'Order already placed', orderId: recent.rows[0].id });
@@ -680,7 +750,7 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              ON CONFLICT (idempotency_key) DO NOTHING
              RETURNING *`,
-            [firstName, lastName, email, phone, city, address, building, JSON.stringify(items), subtotal, deliveryFee, total, idempotencyKey]
+            [firstName, lastName, email, phone, city, address, building, JSON.stringify(items), safeSubtotal, safeDeliveryFee, safeTotal, idempotencyKey]
         );
 
         // ON CONFLICT skipped the insert → a concurrent request already used this key.
@@ -751,15 +821,15 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
                 ${itemListHTML}
                 <tr>
                     <td style="padding: 12px 0 4px 0; font-size: 13px; color: #666666;">Subtotal</td>
-                    <td style="padding: 12px 0 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${subtotal.toFixed(2)}</td>
+                    <td style="padding: 12px 0 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${safeSubtotal.toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 4px 0 12px 0; font-size: 13px; color: #666666;">Delivery Fee</td>
-                    <td style="padding: 4px 0 12px 0; text-align: right; font-size: 13px; color: #1a1a1a;">${deliveryFee.toFixed(2)}</td>
+                    <td style="padding: 4px 0 12px 0; text-align: right; font-size: 13px; color: #1a1a1a;">${safeDeliveryFee === 0 ? 'Free' : '$' + safeDeliveryFee.toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td style="padding: 20px 0; border-top: 2px solid #1a1a1a; font-size: 16px; font-weight: bold; color: #1a1a1a;">Total to Collect (COD)</td>
-                    <td style="padding: 20px 0; border-top: 2px solid #1a1a1a; text-align: right; font-size: 18px; font-weight: bold; color: #1a1a1a;">$${total.toFixed(2)}</td>
+                    <td style="padding: 20px 0; border-top: 2px solid #1a1a1a; text-align: right; font-size: 18px; font-weight: bold; color: #1a1a1a;">$${safeTotal.toFixed(2)}</td>
                 </tr>
             </table>
         `);
@@ -784,15 +854,15 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
                     ${itemListHTML}
                     <tr>
                         <td style="padding: 16px 0 4px 0; font-size: 13px; color: #666666;">Subtotal</td>
-                        <td style="padding: 16px 0 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${subtotal.toFixed(2)}</td>
+                        <td style="padding: 16px 0 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${safeSubtotal.toFixed(2)}</td>
                     </tr>
                     <tr>
                         <td style="padding: 4px 0 16px 0; font-size: 13px; color: #666666;">Delivery Fee</td>
-                        <td style="padding: 4px 0 16px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${deliveryFee === 0 ? 'Free' : '$' + deliveryFee.toFixed(2)}</td>
+                        <td style="padding: 4px 0 16px 0; text-align: right; font-size: 13px; color: #1a1a1a;">${safeDeliveryFee === 0 ? 'Free' : '$' + safeDeliveryFee.toFixed(2)}</td>
                     </tr>
                     <tr>
                         <td style="padding: 20px 0; border-top: 1px solid #1a1a1a; font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #1a1a1a;">Total (Cash on Delivery)</td>
-                        <td style="padding: 20px 0; border-top: 1px solid #1a1a1a; text-align: right; font-size: 18px; font-weight: bold; color: #1a1a1a;">$${total.toFixed(2)}</td>
+                        <td style="padding: 20px 0; border-top: 1px solid #1a1a1a; text-align: right; font-size: 18px; font-weight: bold; color: #1a1a1a;">$${safeTotal.toFixed(2)}</td>
                     </tr>
                 </table>
             `);

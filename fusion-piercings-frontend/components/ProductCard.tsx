@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Product } from '@/lib/types';
 import { COLOR_DOT_GRADIENT, COLOR_LABELS } from '@/lib/products';
+import { isAftercare } from '@/lib/categories';
 
 interface Props {
   product: Product;
@@ -37,7 +38,10 @@ function resolveColorKey(product: Product): string {
 export default function ProductCard({ product, onNavigate }: Props) {
   const formattedPrice = Number(product.price).toFixed(2);
   const colorType      = resolveColorKey(product);
-  const categoryName   = product.category || 'Collection';
+  // Aftercare isn't made of anything — the metal dot would be invented, and
+  // `resolveColorKey` falls back to gold, so it has to be suppressed here.
+  const isAftercareProduct = isAftercare(product);
+  const categoryName   = isAftercareProduct ? 'Aftercare' : (product.category || 'Collection');
   const isOutOfStock   = Number(product.stock_count) === 0;
 
   return (
@@ -86,11 +90,13 @@ export default function ProductCard({ product, onNavigate }: Props) {
           <div className="flex items-center justify-between mt-auto">
             <span className="text-[0.9rem] font-bold text-ink">${formattedPrice}</span>
 
-            <span
-                className="w-2 h-2 rounded-full flex-shrink-0 border border-border-lt"
-                style={{ background: (COLOR_DOT_GRADIENT as any)?.[colorType] || '#C8922E' }}
-                title={(COLOR_LABELS as any)?.[colorType] || 'Gold'}
-            />
+            {!isAftercareProduct && (
+                <span
+                    className="w-2 h-2 rounded-full flex-shrink-0 border border-border-lt"
+                    style={{ background: (COLOR_DOT_GRADIENT as any)?.[colorType] || '#C8922E' }}
+                    title={(COLOR_LABELS as any)?.[colorType] || 'Gold'}
+                />
+            )}
           </div>
         </div>
       </Link>

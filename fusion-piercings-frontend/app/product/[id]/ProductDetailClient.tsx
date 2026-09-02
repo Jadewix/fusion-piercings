@@ -13,6 +13,7 @@ import {
   isColorAvailable, isProductSoldOut, isVariantInStock, resolvePrice, variantPrice,
 } from '@/lib/variants';
 import { parseDescription } from '@/lib/description';
+import { isAftercare } from '@/lib/categories';
 
 interface Props {
   productId: string;
@@ -144,6 +145,14 @@ export default function ProductDetailClient({ productId }: Props) {
 
   const isBothColor     = product.color === 'both';
   const hasGemSizes     = gemSizes.length > 0;
+
+  // Aftercare has no bar size — the API stores a single "One Size" placeholder
+  // for it. That's not a choice worth rendering, so the selector is hidden and
+  // the lone size stays selected underneath for the cart.
+  const isAftercareProduct = isAftercare(product);
+  const hasRealSizes    = !(sizes.length === 1 && sizes[0].size === 'One Size');
+  const showSizePicker  = hasRealSizes;
+  const sizeLabel       = isAftercareProduct ? 'Size' : 'Bar Size';
 
   // Availability is asked per colour: a bar size can be sold out in gold while
   // still in stock in silver, so every check below is scoped to the colour the
@@ -360,9 +369,10 @@ export default function ProductDetailClient({ productId }: Props) {
             )}
 
             {/* Bar size selector */}
+            {showSizePicker && (
             <div className="mb-8">
               <p className="text-[0.7rem] font-semibold tracking-[0.16em] uppercase text-ink-2 mb-3">
-                Bar Size
+                {sizeLabel}
               </p>
               <div className="flex flex-wrap gap-2">
                 {sizes.map(entry => {
@@ -392,11 +402,12 @@ export default function ProductDetailClient({ productId }: Props) {
               {selectedSizeOOS && (
                   <p className="text-[0.72rem] text-red-500 mt-2.5">
                     {isBothColor
-                        ? `This bar size is out of stock in ${colorLabel}.`
-                        : 'This bar size is currently out of stock.'}
+                        ? `This ${sizeLabel.toLowerCase()} is out of stock in ${colorLabel}.`
+                        : `This ${sizeLabel.toLowerCase()} is currently out of stock.`}
                   </p>
               )}
             </div>
+            )}
 
             {/* Gem size selector (only when the product has gem-size variants) */}
             {hasGemSizes && (

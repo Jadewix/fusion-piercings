@@ -83,8 +83,15 @@ export default function CartDrawer() {
                         {/* Details */}
                         <div>
                           <p className="text-[0.85rem] font-medium text-ink mb-0.5">{item.name}</p>
+                          {/* Built as a list so a product missing an attribute
+                              (aftercare has no colour) doesn't leave a dangling
+                              separator behind. */}
                           <p className="text-[0.72rem] text-ink-3 mb-2 tracking-[0.04em]">
-                              {item.size ? `${item.size} · ` : ''}{item.gemSize ? `${item.gemSize} mm · ` : ''}{item.color ? item.color.charAt(0).toUpperCase() + item.color.slice(1) : ''}
+                              {[
+                                item.size || null,
+                                item.gemSize ? `${item.gemSize} mm` : null,
+                                item.color ? item.color.charAt(0).toUpperCase() + item.color.slice(1) : null,
+                              ].filter(Boolean).join(' · ')}
                           </p>
                           <div className="flex items-center gap-2">
                             <button onClick={() => updateQty(item.cartKey, -1)} className="w-6 h-6 rounded-full bg-border-lt text-ink-2 text-sm flex items-center justify-center hover:bg-ink hover:text-bg transition-all">−</button>
