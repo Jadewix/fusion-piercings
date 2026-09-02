@@ -25,6 +25,11 @@ const SHOP_CATEGORIES: ShopCategory[] = [
   { label: 'Titanium', href: '/collections/titanium', subcategories: SUBCATEGORIES },
   { label: 'Surgical Steel', href: '/collections/surgical-steel', subcategories: SUBCATEGORIES },
   { label: '18k Gold Plated', href: '/collections/gold-plated-hoops', subcategories: SUBCATEGORIES },
+  // Last, and deliberately without placement sub-items: aftercare is neither a
+  // material nor something worn in a spot. It points at the home-page section
+  // rather than a /collections page, which is the same place the top-level
+  // Aftercare link goes.
+  { label: 'Aftercare', href: '/#aftercare' },
 ];
 
 const NAV_LINKS = [
