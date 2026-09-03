@@ -29,13 +29,13 @@ const SHOP_CATEGORIES: ShopCategory[] = [
   // material nor something worn in a spot. It points at the home-page section
   // rather than a /collections page, which is the same place the top-level
   // Aftercare link goes.
-  { label: 'Aftercare', href: '/#aftercare' },
+  { label: 'Aftercare Products', href: '/#aftercare' },
 ];
 
 const NAV_LINKS = [
   { label: 'Home', href: '/#home', hasDropdown: false },
   { label: 'Shop', href: '/#shop', hasDropdown: true },
-  { label: 'Aftercare', href: '/#aftercare', hasDropdown: false },
+  { label: 'Aftercare Products', href: '/#aftercare', hasDropdown: false },
   { label: 'Care Guide', href: '/care-guide', hasDropdown: false },
   { label: 'Book Appointment', href: '/book', hasDropdown: false },
 ];

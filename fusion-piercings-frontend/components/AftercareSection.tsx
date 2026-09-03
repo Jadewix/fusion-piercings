@@ -13,7 +13,7 @@ export default function AftercareSection() {
       category={AFTERCARE_CATEGORY}
       hideFilters
       eyebrow="Piercing Aftercare"
-      title="Aftercare Essentials"
+      title="Aftercare Products"
       emptyMessage="Aftercare products are coming soon."
       background="warm"
     />
