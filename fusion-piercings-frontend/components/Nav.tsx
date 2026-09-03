@@ -27,15 +27,13 @@ const SHOP_CATEGORIES: ShopCategory[] = [
   { label: '18k Gold Plated', href: '/collections/gold-plated-hoops', subcategories: SUBCATEGORIES },
   // Last, and deliberately without placement sub-items: aftercare is neither a
   // material nor something worn in a spot. It points at the home-page section
-  // rather than a /collections page, which is the same place the top-level
-  // Aftercare link goes.
+  // rather than a /collections page.
   { label: 'Aftercare Products', href: '/#aftercare' },
 ];
 
 const NAV_LINKS = [
   { label: 'Home', href: '/#home', hasDropdown: false },
   { label: 'Shop', href: '/#shop', hasDropdown: true },
-  { label: 'Aftercare Products', href: '/#aftercare', hasDropdown: false },
   { label: 'Care Guide', href: '/care-guide', hasDropdown: false },
   { label: 'Book Appointment', href: '/book', hasDropdown: false },
 ];
