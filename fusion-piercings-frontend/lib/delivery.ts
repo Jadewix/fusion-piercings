@@ -11,7 +11,7 @@
 export const FREE_DELIVERY_THRESHOLD = 75;
 
 /** Flat fee below the threshold, outside the free-delivery towns. */
-export const STANDARD_DELIVERY_FEE = 3;
+export const STANDARD_DELIVERY_FEE = 4;
 
 /** The studio's own town — always free, at any order value. */
 export const FREE_DELIVERY_CITY = 'Zgharta';

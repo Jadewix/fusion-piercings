@@ -108,7 +108,7 @@ function uploadImages(req, res, next) {
 // never comes from the browser.
 
 const FREE_DELIVERY_THRESHOLD = 75;   // free everywhere above this subtotal
-const STANDARD_DELIVERY_FEE   = 3;    // flat fee elsewhere below the threshold
+const STANDARD_DELIVERY_FEE   = 4;    // flat fee elsewhere below the threshold
 
 // Zgharta — the studio's own town — always ships free, at any order value.
 // Listed as normalised spellings because the city arrives as free text from

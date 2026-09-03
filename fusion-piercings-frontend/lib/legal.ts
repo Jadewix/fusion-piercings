@@ -26,7 +26,7 @@ export const LEGAL = {
   deliveryAreas:  'all governorates',
   deliveryTime:   '3–5 business days',
   freeShipThreshold: 75, // USD
-  deliveryFee:    3,     // USD
+  deliveryFee:    4,     // USD
 
   // Returns
   returnWindowDays: 14,

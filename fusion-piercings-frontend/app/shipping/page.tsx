@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import LegalPage, { LegalSection } from '@/components/legal/LegalPage';
 import { LEGAL } from '@/lib/legal';
+import { FREE_DELIVERY_CITY } from '@/lib/delivery';
 
 export const metadata: Metadata = {
   title: 'Shipping & Delivery',
@@ -26,6 +27,10 @@ export default function ShippingPage() {
           We charge a flat ${LEGAL.deliveryFee} delivery fee on orders under ${LEGAL.freeShipThreshold}. Orders of
           ${LEGAL.freeShipThreshold} or more qualify for <strong>free delivery</strong>. Any applicable fee is
           shown at checkout before you place your order.
+        </p>
+        <p>
+          Delivery is always <strong>free in {FREE_DELIVERY_CITY}</strong>, our own town, whatever your order
+          comes to.
         </p>
       </LegalSection>
 
