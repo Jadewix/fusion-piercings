@@ -11,6 +11,9 @@ import ErrorState from '@/components/admin/ErrorState';
 import Pagination from '@/components/ui/Pagination';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import { PageMeta } from '@/lib/pagination';
+import {
+    adminFetch, getAdminToken, saveAdminSession, clearAdminSession, onAdminSessionExpired,
+} from '@/lib/adminFetch';
 
 type ViewMode = 'active' | 'inactive';
 type DashboardView = 'inventory' | 'orders' | 'promos';
@@ -62,7 +65,7 @@ export default function AdminDashboard() {
 
     // Restore session on mount
     useEffect(() => {
-        if (sessionStorage.getItem('admin_auth') === '1') setIsAuthed(true);
+        if (getAdminToken()) setIsAuthed(true);
     }, []);
 
     // Close dropdowns when clicking outside
@@ -85,7 +88,7 @@ export default function AdminDashboard() {
         setLoading(true);
         setInventoryError(false);
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/inventory`);
+            const res = await adminFetch('/admin/inventory');
             if (!res.ok) throw new Error('Failed to load inventory');
             const data = await res.json();
             setInventory(data);
@@ -102,7 +105,7 @@ export default function AdminDashboard() {
         setOrdersError(false);
         try {
             const params = new URLSearchParams({ page: String(page), limit: String(ORDERS_PAGE_SIZE) });
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders?${params}`);
+            const res = await adminFetch(`/admin/orders?${params}`);
             if (!res.ok) throw new Error('Failed to load orders');
             const data = await res.json();
             setOrders(data.orders || []);
@@ -135,7 +138,7 @@ export default function AdminDashboard() {
 
     const handleUpdateOrderStatus = useCallback(async (orderId: number, newStatus: OrderStatus) => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders/${orderId}/status`, {
+            const res = await adminFetch(`/admin/orders/${orderId}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus }),
@@ -150,7 +153,7 @@ export default function AdminDashboard() {
     const handleToggleStock = useCallback(async (product: Product) => {
         const newStatus = product.stock_count === 0 ? 'in_stock' : 'out_of_stock';
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${product.id}/stock`, {
+            const res = await adminFetch(`/products/${product.id}/stock`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus }),
@@ -173,7 +176,9 @@ export default function AdminDashboard() {
                 body: JSON.stringify({ password }),
             });
             if (!res.ok) throw new Error('Incorrect password');
-            sessionStorage.setItem('admin_auth', '1');
+            const session = await res.json();
+            if (typeof session?.token !== 'string') throw new Error('No session token in response');
+            saveAdminSession(session);
             setIsAuthed(true);
         } catch {
             setAuthError('Incorrect password. Please try again.');
@@ -182,13 +187,21 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleLogout = () => {
-        sessionStorage.removeItem('admin_auth');
+    const handleLogout = useCallback(() => {
+        clearAdminSession();
         setIsAuthed(false);
         setInventory(null);
         setOrders([]);
         setPassword('');
-    };
+        setIsModalOpen(false);
+    }, []);
+
+    // Any admin request that comes back 401 (token expired or revoked) lands
+    // here, and the owner is sent back to the password screen.
+    useEffect(() => onAdminSessionExpired(() => {
+        handleLogout();
+        setAuthError('Your session has expired. Please log in again.');
+    }), [handleLogout]);
 
     const handleAddNew = useCallback(() => { setEditingProduct(null); setIsModalOpen(true); }, []);
     const handleEdit   = useCallback((product: Product) => { setEditingProduct(product); setIsModalOpen(true); }, []);
@@ -196,7 +209,7 @@ export default function AdminDashboard() {
     const handleDelete = useCallback(async (product: Product) => {
         if (!window.confirm(`Delete "${product.name}"? This cannot be undone.`)) return;
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${product.id}`, { method: 'DELETE' });
+            const res = await adminFetch(`/products/${product.id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete product');
             fetchInventory();
         } catch (err) {

@@ -8,6 +8,7 @@ import {
 } from '@/lib/types';
 import { coerceSizes, coerceGemSizes, coerceColors, isProductSoldOut } from '@/lib/variants';
 import { AFTERCARE_CATEGORY, PLACEMENT_OPTIONS, isAftercare } from '@/lib/categories';
+import { adminFetch } from '@/lib/adminFetch';
 
 interface Props {
     product?: Product | null;
@@ -614,11 +615,9 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
 
             for (const p of pendingFiles) formData.append('images', p.file);
 
-            const url = isEditing
-                ? `${process.env.NEXT_PUBLIC_API_URL}/products/${product.id}`
-                : `${process.env.NEXT_PUBLIC_API_URL}/products`;
+            const path = isEditing ? `/products/${product.id}` : '/products';
 
-            const res = await fetch(url, {
+            const res = await adminFetch(path, {
                 method: isEditing ? 'PUT' : 'POST',
                 body: formData,
             });
@@ -641,7 +640,7 @@ export default function AdminProductModal({ product, onClose, onSave }: Props) {
             const soldOut = isAftercareProduct
                 ? !aftercareInStock || !sizesPayload.some(s => s.in_stock)
                 : isProductSoldOut(selectedColors, sizesPayload, gemSizesPayload);
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/stock`, {
+            await adminFetch(`/products/${productId}/stock`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: soldOut ? 'out_of_stock' : 'in_stock' }),

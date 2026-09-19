@@ -7,8 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { PromoCode } from '@/lib/types';
 import { formatDate } from './shared';
 import ErrorState from './ErrorState';
-
-const API = process.env.NEXT_PUBLIC_API_URL;
+import { adminFetch } from '@/lib/adminFetch';
 
 const inputClass = "w-full bg-transparent border border-border-lt rounded-sm px-4 py-3 text-[0.85rem] text-ink focus:border-ink focus:outline-none transition-colors";
 
@@ -31,7 +30,7 @@ export default function AdminPromoCodes({ offlineOr }: Props) {
     const fetchCodes = useCallback(async () => {
         setLoadError(false);
         try {
-            const res = await fetch(`${API}/admin/promo-codes`);
+            const res = await adminFetch('/admin/promo-codes');
             if (!res.ok) throw new Error('Failed to load promo codes');
             setCodes(await res.json());
         } catch (err) {
@@ -54,7 +53,7 @@ export default function AdminPromoCodes({ offlineOr }: Props) {
 
         setCreating(true);
         try {
-            const res = await fetch(`${API}/admin/promo-codes`, {
+            const res = await adminFetch('/admin/promo-codes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code, percent: pct }),
@@ -75,7 +74,7 @@ export default function AdminPromoCodes({ offlineOr }: Props) {
         setBusyId(promo.id);
         setRowError('');
         try {
-            const res = await fetch(`${API}/admin/promo-codes/${promo.id}`, {
+            const res = await adminFetch(`/admin/promo-codes/${promo.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ active: !promo.active }),
@@ -96,7 +95,7 @@ export default function AdminPromoCodes({ offlineOr }: Props) {
         setBusyId(promo.id);
         setRowError('');
         try {
-            const res = await fetch(`${API}/admin/promo-codes/${promo.id}`, { method: 'DELETE' });
+            const res = await adminFetch(`/admin/promo-codes/${promo.id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete promo code');
             setCodes(prev => prev?.filter(p => p.id !== promo.id) ?? null);
         } catch (err) {

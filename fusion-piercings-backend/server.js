@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -175,6 +176,60 @@ async function findActivePromo(code) {
     return result.rows[0] || null;
 }
 
+// --- ADMIN AUTH ---
+//
+// A single owner account with a single password (ADMIN_PASSWORD). Logging in
+// trades the password for a signed token, "<expiry ms>.<HMAC of the expiry>",
+// which the dashboard sends as `Authorization: Bearer <token>`. Nothing is
+// stored server-side, so tokens survive restarts and simply lapse at expiry.
+
+const ADMIN_TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+// The signing key is stretched from the password with scrypt, salted with
+// ADMIN_TOKEN_SECRET when that is set. Changing the password therefore logs
+// every session out, and a leaked token can't be cheaply brute-forced back to
+// the password. With no password configured there is no key, and nothing can
+// log in or pass requireAdmin.
+const adminTokenKey = process.env.ADMIN_PASSWORD
+    ? crypto.scryptSync(process.env.ADMIN_PASSWORD, process.env.ADMIN_TOKEN_SECRET || 'fusion-admin-token', 32)
+    : null;
+
+function signAdminExpiry(expiresAt) {
+    return crypto.createHmac('sha256', adminTokenKey).update(`admin:${expiresAt}`).digest('base64url');
+}
+
+// Constant-time string comparison. Hashing both sides first gives
+// timingSafeEqual the equal-length buffers it requires without leaking length.
+function safeEqual(a, b) {
+    const hashA = crypto.createHash('sha256').update(String(a)).digest();
+    const hashB = crypto.createHash('sha256').update(String(b)).digest();
+    return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function issueAdminToken() {
+    const expiresAt = Date.now() + ADMIN_TOKEN_TTL_MS;
+    return { token: `${expiresAt}.${signAdminExpiry(expiresAt)}`, expiresAt };
+}
+
+function isValidAdminToken(token) {
+    if (!adminTokenKey) return false;
+    const [expiresAt, signature, ...rest] = token.split('.');
+    if (rest.length > 0 || !/^\d+$/.test(expiresAt) || !signature) return false;
+    if (!safeEqual(signature, signAdminExpiry(expiresAt))) return false;
+    return Number(expiresAt) > Date.now();
+}
+
+// Guards every owner-only route. On the product routes it runs ahead of multer,
+// so an unauthenticated upload is refused before any image is processed.
+function requireAdmin(req, res, next) {
+    const match = /^Bearer\s+(\S+)$/i.exec(req.get('Authorization') || '');
+    if (!match || !isValidAdminToken(match[1])) {
+        res.set('WWW-Authenticate', 'Bearer');
+        return res.status(401).json({ error: 'Admin login required' });
+    }
+    next();
+}
+
 // --- PUBLIC ROUTES (For the Storefront) ---
 
 // POST rather than GET so codes being tried never land in URLs or access logs.
@@ -297,6 +352,7 @@ app.get('/api/products/:id', async (req, res) => {
 });
 
 // --- ADMIN ROUTES (For the Owner's Dashboard) ---
+// Every owner-only route takes requireAdmin as its first middleware.
 
 // Normalise an incoming colors payload to [{color, in_stock}].
 // Accepts JSON like `[{"color":"gold","in_stock":true}, ...]` from the admin form,
@@ -459,7 +515,7 @@ function parseCategories(raw, fallbackSingle) {
     return Array.from(new Set(parsed));
 }
 
-app.post('/api/products', uploadImages, async (req, res) => {
+app.post('/api/products', requireAdmin, uploadImages, async (req, res) => {
     const { name, description, price, category, color, sizes, gem_sizes, material_tags, categories, colors } = req.body;
     const files = req.files || [];
 
@@ -505,7 +561,7 @@ app.post('/api/products', uploadImages, async (req, res) => {
     }
 });
 
-app.patch('/api/products/:id/stock', async (req, res) => {
+app.patch('/api/products/:id/stock', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
@@ -523,7 +579,7 @@ app.patch('/api/products/:id/stock', async (req, res) => {
     }
 });
 
-app.put('/api/products/:id', uploadImages, async (req, res) => {
+app.put('/api/products/:id', requireAdmin, uploadImages, async (req, res) => {
     const { id } = req.params;
     const { name, description, price, category, color, sizes, gem_sizes, material_tags, existing_image_urls, categories, colors } = req.body;
     const files = req.files || [];
@@ -619,7 +675,7 @@ app.put('/api/products/:id', uploadImages, async (req, res) => {
     }
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
         const productResult = await pool.query('SELECT image_url, image_urls FROM products WHERE id = $1', [id]);
@@ -638,7 +694,7 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 });
 
-app.get('/api/admin/inventory', async (req, res) => {
+app.get('/api/admin/inventory', requireAdmin, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM products ORDER BY stock_count ASC');
         const products = result.rows;
@@ -682,12 +738,14 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
 });
 
 app.post('/api/admin/auth', authLimiter, (req, res) => {
-    const { password } = req.body;
-    if (!password || password !== process.env.ADMIN_PASSWORD) return res.status(401).json({ error: 'Incorrect password' });
-    res.status(200).json({ ok: true });
+    const password = req.body?.password;
+    if (!adminTokenKey || !password || !safeEqual(password, process.env.ADMIN_PASSWORD)) {
+        return res.status(401).json({ error: 'Incorrect password' });
+    }
+    res.status(200).json(issueAdminToken());
 });
 
-app.get('/api/admin/orders', async (req, res) => {
+app.get('/api/admin/orders', requireAdmin, async (req, res) => {
     // --- Parse & sanitize pagination params (mirrors /api/products) ---
     let page  = parseInt(req.query.page, 10);
     let limit = parseInt(req.query.limit, 10);
@@ -726,7 +784,7 @@ app.get('/api/admin/orders', async (req, res) => {
     }
 });
 
-app.patch('/api/admin/orders/:id/status', async (req, res) => {
+app.patch('/api/admin/orders/:id/status', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     const allowed = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
@@ -741,7 +799,7 @@ app.patch('/api/admin/orders/:id/status', async (req, res) => {
     }
 });
 
-app.get('/api/admin/promo-codes', async (req, res) => {
+app.get('/api/admin/promo-codes', requireAdmin, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC, id DESC');
         res.status(200).json(result.rows);
@@ -751,7 +809,7 @@ app.get('/api/admin/promo-codes', async (req, res) => {
     }
 });
 
-app.post('/api/admin/promo-codes', async (req, res) => {
+app.post('/api/admin/promo-codes', requireAdmin, async (req, res) => {
     const code = normalisePromoCode(req.body?.code);
     const percent = Number(req.body?.percent);
 
@@ -775,7 +833,7 @@ app.post('/api/admin/promo-codes', async (req, res) => {
     }
 });
 
-app.patch('/api/admin/promo-codes/:id', async (req, res) => {
+app.patch('/api/admin/promo-codes/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const active = req.body?.active;
     if (typeof active !== 'boolean') return res.status(400).json({ error: 'active must be true or false' });
@@ -791,7 +849,7 @@ app.patch('/api/admin/promo-codes/:id', async (req, res) => {
 
 // Past orders keep their own copy of the code and discount, so deleting a code
 // never changes what an order says it was charged.
-app.delete('/api/admin/promo-codes/:id', async (req, res) => {
+app.delete('/api/admin/promo-codes/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query('DELETE FROM promo_codes WHERE id = $1 RETURNING id', [id]);

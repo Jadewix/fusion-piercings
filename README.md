@@ -251,10 +251,10 @@ Seeded idempotently on boot.
 
 ### Admin
 - A **single shared password** stored in the backend env var `ADMIN_PASSWORD`.
-- The admin UI submits it to `POST /api/admin/auth`, which does a plaintext comparison and returns `{ ok: true }` on match (rate-limited to 10 attempts / 5 min per IP).
-- On success the **frontend** sets `sessionStorage.admin_auth = '1'` and renders the dashboard. The session lives only in the browser tab.
-
-> ⚠️ **Important:** authentication only gates the **UI**. Issuing a token is *not* part of the flow, and the admin **data** endpoints (`/api/admin/*`, product `POST`/`PUT`/`DELETE`, `PATCH /products/:id/stock`) **do not verify any credential server-side.** Anyone who knows the API base URL can call them directly. This is the single most important item in [Known Limitations](#known-limitations--future-improvements) and [Security](#security-considerations).
+- The admin UI submits it to `POST /api/admin/auth` (rate-limited to 10 attempts / 5 min per IP). On a match — compared in constant time — the server returns `{ token, expiresAt }`: a signed token valid for **12 hours**.
+- The token is `<expiry ms>.<HMAC-SHA256 of the expiry>`. The signing key is derived from `ADMIN_PASSWORD` with scrypt, salted with `ADMIN_TOKEN_SECRET` when set. Nothing is stored server-side, so tokens survive restarts; **changing `ADMIN_PASSWORD` (or `ADMIN_TOKEN_SECRET`) logs out every session.**
+- Every owner-only route runs the `requireAdmin` middleware, which requires `Authorization: Bearer <token>` with a valid signature and an unexpired timestamp, and answers `401` otherwise. On the multipart product routes it runs before `multer`, so unauthenticated uploads are refused before any image is processed.
+- The **frontend** keeps the token in `sessionStorage.admin_session` (so it ends with the tab) and sends it through `adminFetch` (`lib/adminFetch.ts`). Any `401` clears the session and returns the owner to the password screen.
 
 ### Customers
 - **No accounts.** Checkout and booking are fully guest flows. The only customer data stored is what is submitted per order (`orders`) or per contact message (`contact_messages`).
@@ -273,9 +273,10 @@ Base URL: `${NEXT_PUBLIC_API_URL}` (e.g. `https://<service>.onrender.com/api`). 
 | `GET` | `/api/collections` | Collection list (ordered). |
 | `POST` | `/api/orders` | Place a COD order. **Rate-limited** (8 / 10 min). Idempotent. |
 | `POST` | `/api/contact` | Store a contact message + email the owner. **Rate-limited** (5 / 10 min). |
-| `POST` | `/api/admin/auth` | Validate the admin password. **Rate-limited** (10 / 5 min). |
+| `POST` | `/api/promo-codes/validate` | Check a promo code at checkout. **Rate-limited** (20 / 10 min). |
+| `POST` | `/api/admin/auth` | Exchange the admin password for a 12-hour token. **Rate-limited** (10 / 5 min). |
 
-### Admin endpoints (UI-gated only — see Auth note)
+### Admin endpoints (require `Authorization: Bearer <token>` — see Auth)
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/admin/inventory` | Products split into `{ active, inactive }` by `stock_count`. |
@@ -285,6 +286,10 @@ Base URL: `${NEXT_PUBLIC_API_URL}` (e.g. `https://<service>.onrender.com/api`). 
 | `PUT` | `/api/products/:id` | Update product (multipart; merges kept + new images). |
 | `DELETE` | `/api/products/:id` | Delete product **and** its Supabase Storage images. |
 | `PATCH` | `/api/products/:id/stock` | Toggle stock state (`in_stock`/`out_of_stock`/`low_stock`). |
+| `GET` | `/api/admin/promo-codes` | All promo codes, newest first. |
+| `POST` | `/api/admin/promo-codes` | Create a code (`code`, whole-number `percent` 1–100). |
+| `PATCH` | `/api/admin/promo-codes/:id` | Switch a code on or off (`active`). |
+| `DELETE` | `/api/admin/promo-codes/:id` | Delete a code. |
 
 ### Integrations
 - **Supabase Postgres** via `pg` connection pool (`DATABASE_URL`, SSL, retrying boot).
@@ -368,6 +373,7 @@ Reachable at `/admin`, behind the password gate. Three views:
 ## Security Considerations
 
 **In place**
+- **Server-side admin auth** — every owner-only route requires a signed, expiring bearer token (see [Authentication](#authentication--authorization)).
 - **Parameterized SQL** everywhere (`pg` placeholders) — no SQL injection surface.
 - **Rate limiting** on orders, admin auth (brute-force slowdown), and contact.
 - **Duplicate-order protection** (idempotency key + 90-second content-window dedup + `ON CONFLICT`).
@@ -376,10 +382,9 @@ Reachable at `/admin`, behind the password gate. Three views:
 - **`trust proxy` + standard rate-limit headers** so the limiter sees real client IPs behind Render's proxy.
 
 **Gaps / things to harden before scaling**
-- 🔴 **Admin data endpoints are not authenticated server-side.** `/api/admin/*`, product `POST`/`PUT`/`DELETE`, and the stock `PATCH` accept any caller. Add a shared-secret/bearer-token middleware (validated against an env var) and send it from the admin UI. *Highest priority.*
 - 🔴 **Order totals are trusted from the client.** The server stores the `subtotal`/`deliveryFee`/`total` it receives without recomputing them from the product table. COD (owner confirms each order by phone) mitigates the financial impact, but the server should recompute prices from the DB.
 - 🟠 **CORS is fully open** (`app.use(cors())` with no allow-list). Restrict to the storefront origin(s).
-- 🟠 **Admin password is compared in plaintext** against an env var. Fine for a single shared secret, but there is no hashing, no lockout beyond the rate limiter, and no per-user accounts.
+- 🟠 **Admin auth is a single shared password** in an env var. There is no lockout beyond the rate limiter, no per-user accounts, and no way to revoke one session short of changing the password.
 - 🟠 **`ssl: { rejectUnauthorized: false }`** on the Postgres pool accepts the managed certificate without strict verification (common for Supabase poolers, but noted).
 
 ---
@@ -392,7 +397,8 @@ Reachable at `/admin`, behind the password gate. Three views:
 | `DATABASE_URL` | ✅ | Supabase Postgres connection string. |
 | `SUPABASE_URL` | ✅ | Supabase project URL (Storage). |
 | `SUPABASE_KEY` | ✅ | Supabase service/anon key used by the Storage client. |
-| `ADMIN_PASSWORD` | ✅ | The admin dashboard password. |
+| `ADMIN_PASSWORD` | ✅ | The admin dashboard password. Also the basis of the admin token signing key, so changing it logs out every session. |
+| `ADMIN_TOKEN_SECRET` | recommended | A long random string mixed into the admin token signing key. With it set, a leaked token can't be used to guess the password offline. Changing it logs out every session. |
 | `BREVO_API_KEY` | ✅ (prod) | Brevo API key for transactional email. Without it, order/contact emails silently fail. |
 | `EMAIL_USER` | ✅ | Sender address **and** the owner-notification recipient. |
 | `PORT` | optional | API port (defaults to `5000`). |
@@ -476,7 +482,6 @@ node seed-test-gold-plated.js       # gold-plated set   | --clean to remove
 
 | Area | Limitation | Suggested improvement |
 |------|------------|-----------------------|
-| **Security** | Admin data endpoints have no server-side auth. | Add token/shared-secret middleware on `/api/admin/*` and product mutations. |
 | **Security** | Order totals are trusted from the client. | Recompute `subtotal`/`delivery`/`total` server-side from the product table. |
 | **Security** | CORS is fully open. | Restrict to the storefront origin(s). |
 | **Inventory** | Stock is a manual flag; orders don't decrement it. | Optional per-variant quantity tracking with atomic decrement at checkout. |
