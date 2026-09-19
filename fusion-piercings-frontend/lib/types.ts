@@ -79,9 +79,20 @@ export interface Order {
   building?: string;
   items: OrderItem[];
   subtotal: number | string;
+  promo_code?: string | null;
+  discount_amount?: number | string;
   delivery_fee: number | string;
   total_amount: number | string;
   status: OrderStatus;
+  created_at: string;
+}
+
+export interface PromoCode {
+  id: number;
+  code: string;
+  percent: number;
+  active: boolean;
+  times_used: number;
   created_at: string;
 }
 

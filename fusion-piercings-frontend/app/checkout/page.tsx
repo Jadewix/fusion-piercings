@@ -8,6 +8,7 @@ import { useCart } from '@/context/CartContext';
 import {
     DELIVERY_CITIES, FREE_DELIVERY_CITY, calcDeliveryFee, isFreeDeliveryCity,
 } from '@/lib/delivery';
+import { AppliedPromo, calcDiscount } from '@/lib/promo';
 
 export default function CheckoutPage() {
     const { cart, cartTotal, clearCart } = useCart();
@@ -34,6 +35,12 @@ export default function CheckoutPage() {
     const [error, setError] = useState('');
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
+    // Promo code — only ever set from the server's answer, never from the input.
+    const [promo, setPromo] = useState<AppliedPromo | null>(null);
+    const [promoInput, setPromoInput] = useState('');
+    const [promoError, setPromoError] = useState('');
+    const [promoLoading, setPromoLoading] = useState(false);
+
     // Idempotency key: stable across retries of the same checkout attempt so the
     // server can dedupe duplicate submissions; regenerated after a successful order.
     const idempotencyKeyRef = useRef<string | null>(null);
@@ -45,11 +52,14 @@ export default function CheckoutPage() {
     // Formatting helpers
 
 
-    // Zgharta ships free at any value; elsewhere it's free over the threshold.
-    // The server recomputes this from the same rule and its answer is the one
-    // that's charged, so this is purely what the shopper sees.
-    const deliveryFee = calcDeliveryFee(formData.city, cartTotal);
-    const finalTotal = cartTotal + deliveryFee;
+    // Zgharta ships free at any value; elsewhere it's free over the threshold,
+    // measured after the promo discount. The server recomputes all of this from
+    // the same rules and its answer is the one that's charged, so this is purely
+    // what the shopper sees.
+    const discount = promo ? calcDiscount(cartTotal, promo.percent) : 0;
+    const discountedSubtotal = Math.round((cartTotal - discount) * 100) / 100;
+    const deliveryFee = calcDeliveryFee(formData.city, discountedSubtotal);
+    const finalTotal = discountedSubtotal + deliveryFee;
     const isCustomCity = DELIVERY_CITIES.find(c => c.value === cityChoice)?.custom ?? false;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,6 +72,29 @@ export default function CheckoutPage() {
         // A named town fills the city straight through; "Other" clears it so
         // the text box that appears starts empty rather than pre-filled.
         setFormData(f => ({ ...f, city: option && !option.custom ? option.value : '' }));
+    };
+
+    const handleApplyPromo = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const code = promoInput.trim();
+        if (!code) return;
+        setPromoError('');
+        setPromoLoading(true);
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/promo-codes/validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(data?.error || 'This promo code is not valid.');
+            setPromo({ code: data.code, percent: Number(data.percent) });
+            setPromoInput('');
+        } catch (err: any) {
+            setPromoError(err.message || 'Could not check the promo code. Please try again.');
+        } finally {
+            setPromoLoading(false);
+        }
     };
 
     // Validation helpers
@@ -107,8 +140,10 @@ export default function CheckoutPage() {
                 body: JSON.stringify({
                     ...formData,
                     items: cart,
-                    // THESE THREE LINES MUST MATCH THE BACKEND EXACTLY:
+                    // THESE LINES MUST MATCH THE BACKEND EXACTLY:
                     subtotal: cartTotal,
+                    promoCode: promo?.code,
+                    discount: discount,
                     deliveryFee: deliveryFee,
                     total: finalTotal,
                 }),
@@ -116,6 +151,9 @@ export default function CheckoutPage() {
 
             if (!res.ok) {
                 const errorData = await res.json().catch(() => null);
+                // The code was switched off (or changed) after it was applied.
+                // Drop it so the summary shows the real total before a retry.
+                if (errorData?.code === 'PROMO_INVALID') setPromo(null);
                 throw new Error(errorData?.error || 'Failed to place order');
             }
 
@@ -293,11 +331,59 @@ export default function CheckoutPage() {
                             )}
                         </div>
 
+                        {cart.length > 0 && (
+                            <div className="mb-6">
+                                {promo ? (
+                                    <div className="flex items-center justify-between gap-3 border border-border-lt rounded-sm px-4 py-3">
+                                        <div className="min-w-0">
+                                            <p className="text-[0.78rem] font-semibold tracking-[0.1em] uppercase text-ink truncate">{promo.code}</p>
+                                            <p className="text-[0.72rem] text-green-600">{promo.percent}% off your items</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPromo(null)}
+                                            className="text-[0.68rem] font-semibold tracking-[0.12em] uppercase text-ink-3 hover:text-ink transition-colors flex-shrink-0"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleApplyPromo} className="flex gap-2">
+                                        <input
+                                            value={promoInput}
+                                            onChange={e => { setPromoInput(e.target.value); if (promoError) setPromoError(''); }}
+                                            placeholder="Promo code"
+                                            aria-label="Promo code"
+                                            autoComplete="off"
+                                            autoCapitalize="characters"
+                                            spellCheck={false}
+                                            maxLength={30}
+                                            className={`${inputClass} min-w-0 uppercase placeholder:normal-case ${promoError ? 'border-red-400 focus:border-red-500' : ''}`}
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={promoLoading || !promoInput.trim()}
+                                            className="px-5 border border-ink text-ink text-[0.72rem] font-semibold tracking-[0.12em] uppercase rounded-sm hover:bg-ink hover:text-bg transition-all disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-ink flex-shrink-0"
+                                        >
+                                            {promoLoading ? 'Checking...' : 'Apply'}
+                                        </button>
+                                    </form>
+                                )}
+                                {promoError && <p className="text-red-500 text-[0.72rem] mt-1.5">{promoError}</p>}
+                            </div>
+                        )}
+
                         <div className="border-t border-border-lt pt-4 space-y-3 mb-6">
                             <div className="flex justify-between text-[0.85rem] text-ink-2">
                                 <span>Subtotal</span>
                                 <span>${cartTotal.toFixed(2)}</span>
                             </div>
+                            {promo && (
+                                <div className="flex justify-between text-[0.85rem] text-green-600">
+                                    <span>Discount ({promo.percent}%)</span>
+                                    <span>−${discount.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between text-[0.85rem] text-ink-2">
                                 <span>Delivery</span>
                                 <span>{deliveryFee === 0 ? 'Free' : `$${deliveryFee.toFixed(2)}`}</span>

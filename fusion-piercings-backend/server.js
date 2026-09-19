@@ -69,6 +69,14 @@ const contactLimiter = rateLimit({
     message: { error: 'Too many messages from this device. Please try again later.' },
 });
 
+const promoLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 20,                  // room to fix a few typos, too few to guess codes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many promo code attempts. Please wait a few minutes and try again.' },
+});
+
 // 1. Initialize PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -140,7 +148,48 @@ function calcDeliveryFee(city, subtotal) {
     return STANDARD_DELIVERY_FEE;
 }
 
+// --- PROMO CODES ---
+//
+// The owner creates codes in the admin dashboard, each worth a whole-number
+// percentage off the item subtotal (never the delivery fee). Mirrors
+// lib/promo.ts on the frontend. Like the delivery fee, the discount is
+// recomputed here at checkout — the browser only ever displays it.
+
+const PROMO_CODE_PATTERN = /^[A-Z0-9_-]{3,30}$/;
+
+// Codes are stored upper-case, so "summer10" and "SUMMER10 " both match.
+function normalisePromoCode(raw) {
+    return String(raw || '').trim().toUpperCase();
+}
+
+/** Dollar discount for a percentage off, rounded to cents. */
+function calcDiscount(subtotal, percent) {
+    return Math.round(subtotal * percent) / 100;
+}
+
+async function findActivePromo(code) {
+    const result = await pool.query(
+        'SELECT id, code, percent FROM promo_codes WHERE code = $1 AND active',
+        [code]
+    );
+    return result.rows[0] || null;
+}
+
 // --- PUBLIC ROUTES (For the Storefront) ---
+
+// POST rather than GET so codes being tried never land in URLs or access logs.
+app.post('/api/promo-codes/validate', promoLimiter, async (req, res) => {
+    const code = normalisePromoCode(req.body?.code);
+    if (!code) return res.status(400).json({ error: 'Enter a promo code.' });
+    try {
+        const promo = await findActivePromo(code);
+        if (!promo) return res.status(404).json({ error: 'This promo code is not valid.' });
+        res.status(200).json({ code: promo.code, percent: promo.percent });
+    } catch (error) {
+        console.error('Error validating promo code:', error);
+        res.status(500).json({ error: 'Could not check the promo code. Please try again.' });
+    }
+});
 
 app.get('/api/products', async (req, res) => {
     // --- Parse & sanitize pagination params ---
@@ -692,9 +741,71 @@ app.patch('/api/admin/orders/:id/status', async (req, res) => {
     }
 });
 
+app.get('/api/admin/promo-codes', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC, id DESC');
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error('Error fetching promo codes:', error);
+        res.status(500).json({ error: 'Failed to fetch promo codes' });
+    }
+});
+
+app.post('/api/admin/promo-codes', async (req, res) => {
+    const code = normalisePromoCode(req.body?.code);
+    const percent = Number(req.body?.percent);
+
+    if (!PROMO_CODE_PATTERN.test(code)) {
+        return res.status(400).json({ error: 'Codes are 3–30 characters: letters, numbers, - or _.' });
+    }
+    if (!Number.isInteger(percent) || percent < 1 || percent > 100) {
+        return res.status(400).json({ error: 'The discount must be a whole number from 1 to 100.' });
+    }
+
+    try {
+        const result = await pool.query(
+            'INSERT INTO promo_codes (code, percent) VALUES ($1, $2) RETURNING *',
+            [code, percent]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        if (error.code === '23505') return res.status(409).json({ error: `${code} already exists.` });
+        console.error('Error creating promo code:', error);
+        res.status(500).json({ error: 'Failed to create promo code' });
+    }
+});
+
+app.patch('/api/admin/promo-codes/:id', async (req, res) => {
+    const { id } = req.params;
+    const active = req.body?.active;
+    if (typeof active !== 'boolean') return res.status(400).json({ error: 'active must be true or false' });
+    try {
+        const result = await pool.query('UPDATE promo_codes SET active = $1 WHERE id = $2 RETURNING *', [active, id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Promo code not found' });
+        res.status(200).json(result.rows[0]);
+    } catch (error) {
+        console.error('Error updating promo code:', error);
+        res.status(500).json({ error: 'Failed to update promo code' });
+    }
+});
+
+// Past orders keep their own copy of the code and discount, so deleting a code
+// never changes what an order says it was charged.
+app.delete('/api/admin/promo-codes/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query('DELETE FROM promo_codes WHERE id = $1 RETURNING id', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Promo code not found' });
+        res.status(200).json({ ok: true });
+    } catch (error) {
+        console.error('Error deleting promo code:', error);
+        res.status(500).json({ error: 'Failed to delete promo code' });
+    }
+});
+
 // --- THE ONE AND ONLY CHECKOUT ROUTE ---
 app.post('/api/orders', orderLimiter, async (req, res) => {
-    const { firstName, lastName, email, phone, city, address, building, items, subtotal, deliveryFee, total } = req.body;
+    const { firstName, lastName, email, phone, city, address, building, items, subtotal, deliveryFee, promoCode, discount } = req.body;
     const idempotencyKey = req.get('Idempotency-Key') || null;
 
     // --- Basic validation ---
@@ -710,20 +821,12 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Invalid order subtotal.' });
     }
 
-    // The delivery fee is recomputed here rather than trusted from the request:
-    // it decides what the courier collects, and the browser is free to send
-    // anything. The client runs the same rule so the summary it shows matches.
-    const safeDeliveryFee = calcDeliveryFee(city, safeSubtotal);
-    const safeTotal = Math.round((safeSubtotal + safeDeliveryFee) * 100) / 100;
-
-    if (Number(deliveryFee) !== safeDeliveryFee) {
-        console.warn(
-            `Delivery fee mismatch for ${city}: client sent ${deliveryFee}, server charged ${safeDeliveryFee}`
-        );
-    }
+    const promoCodeInput = normalisePromoCode(promoCode);
 
     try {
         // 1a. Idempotency: if this exact submission was already saved, return it (no duplicate).
+        //     Runs before the promo check so a retry still finds its order even if
+        //     the code was switched off in between.
         if (idempotencyKey) {
             const seen = await pool.query('SELECT id FROM orders WHERE idempotency_key = $1', [idempotencyKey]);
             if (seen.rows.length > 0) {
@@ -731,7 +834,38 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
             }
         }
 
-        // 1b. Content-window dedup: same phone + total within 90s catches accidental
+        // 1b. Promo code. Looked up and priced here, never taken from the request.
+        //     If the code stopped working after the shopper applied it (switched
+        //     off, deleted, or re-created at another percentage), fail the order
+        //     rather than quietly charging a different total than they agreed to.
+        let promo = null;
+        let safeDiscount = 0;
+        if (promoCodeInput) {
+            promo = await findActivePromo(promoCodeInput);
+            if (promo) safeDiscount = calcDiscount(safeSubtotal, promo.percent);
+            if (!promo || Number(discount) !== safeDiscount) {
+                return res.status(409).json({
+                    error: `Promo code ${promoCodeInput} has changed or is no longer valid. We've removed it — please check your total and place the order again.`,
+                    code: 'PROMO_INVALID',
+                });
+            }
+        }
+        const discountedSubtotal = Math.round((safeSubtotal - safeDiscount) * 100) / 100;
+
+        // The delivery fee is recomputed here rather than trusted from the request:
+        // it decides what the courier collects, and the browser is free to send
+        // anything. The client runs the same rule so the summary it shows matches.
+        // The free-delivery threshold applies to the subtotal after the discount.
+        const safeDeliveryFee = calcDeliveryFee(city, discountedSubtotal);
+        const safeTotal = Math.round((discountedSubtotal + safeDeliveryFee) * 100) / 100;
+
+        if (Number(deliveryFee) !== safeDeliveryFee) {
+            console.warn(
+                `Delivery fee mismatch for ${city}: client sent ${deliveryFee}, server charged ${safeDeliveryFee}`
+            );
+        }
+
+        // 1c. Content-window dedup: same phone + total within 90s catches accidental
         //     re-submits (e.g. two browser tabs) where the idempotency key differs.
         const recent = await pool.query(
             `SELECT id FROM orders
@@ -743,14 +877,14 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
             return res.status(200).json({ message: 'Order already placed', orderId: recent.rows[0].id });
         }
 
-        // 1c. Insert. ON CONFLICT guards against a race between two requests sharing a key.
+        // 1d. Insert. ON CONFLICT guards against a race between two requests sharing a key.
         const result = await pool.query(
             `INSERT INTO orders
-             (first_name, last_name, email, phone, city, address, building, items, subtotal, delivery_fee, total_amount, idempotency_key)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             (first_name, last_name, email, phone, city, address, building, items, subtotal, promo_code, discount_amount, delivery_fee, total_amount, idempotency_key)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              ON CONFLICT (idempotency_key) DO NOTHING
              RETURNING *`,
-            [firstName, lastName, email, phone, city, address, building, JSON.stringify(items), safeSubtotal, safeDeliveryFee, safeTotal, idempotencyKey]
+            [firstName, lastName, email, phone, city, address, building, JSON.stringify(items), safeSubtotal, promo ? promo.code : null, safeDiscount, safeDeliveryFee, safeTotal, idempotencyKey]
         );
 
         // ON CONFLICT skipped the insert → a concurrent request already used this key.
@@ -760,6 +894,11 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
         }
 
         const newOrder = result.rows[0];
+
+        if (promo) {
+            pool.query('UPDATE promo_codes SET times_used = times_used + 1 WHERE id = $1', [promo.id])
+                .catch(err => console.error('Failed to count promo code use:', err));
+        }
 
         // --- STYLED EMAIL HTML GENERATOR ---
         const itemListHTML = items.map(item => {
@@ -800,6 +939,14 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
             </div>
         `;
 
+        // Sits between Subtotal and Delivery Fee in both emails.
+        const discountRowHTML = promo ? `
+                <tr>
+                    <td style="padding: 4px 0; font-size: 13px; color: #666666;">Promo ${promo.code} (${promo.percent}% off)</td>
+                    <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">-$${safeDiscount.toFixed(2)}</td>
+                </tr>
+        ` : '';
+
         // 2. SEND THE SUCCESS RESPONSE INSTANTLY!
         res.status(201).json({ message: "Order placed successfully!", orderId: newOrder.id });
 
@@ -823,6 +970,7 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
                     <td style="padding: 12px 0 4px 0; font-size: 13px; color: #666666;">Subtotal</td>
                     <td style="padding: 12px 0 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${safeSubtotal.toFixed(2)}</td>
                 </tr>
+                ${discountRowHTML}
                 <tr>
                     <td style="padding: 4px 0 12px 0; font-size: 13px; color: #666666;">Delivery Fee</td>
                     <td style="padding: 4px 0 12px 0; text-align: right; font-size: 13px; color: #1a1a1a;">${safeDeliveryFee === 0 ? 'Free' : '$' + safeDeliveryFee.toFixed(2)}</td>
@@ -856,6 +1004,7 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
                         <td style="padding: 16px 0 4px 0; font-size: 13px; color: #666666;">Subtotal</td>
                         <td style="padding: 16px 0 4px 0; text-align: right; font-size: 13px; color: #1a1a1a;">$${safeSubtotal.toFixed(2)}</td>
                     </tr>
+                    ${discountRowHTML}
                     <tr>
                         <td style="padding: 4px 0 16px 0; font-size: 13px; color: #666666;">Delivery Fee</td>
                         <td style="padding: 4px 0 16px 0; text-align: right; font-size: 13px; color: #1a1a1a;">${safeDeliveryFee === 0 ? 'Free' : '$' + safeDeliveryFee.toFixed(2)}</td>
@@ -909,6 +1058,20 @@ async function initDB() {
     } catch (e) {
         console.error('Idempotency migration skipped (non-fatal):', e.message);
     }
+    // Promo codes. Orders keep their own copy of the code and the dollar
+    // discount, so they stay accurate after a code is edited or deleted.
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code VARCHAR`);
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0`);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id         SERIAL PRIMARY KEY,
+            code       VARCHAR UNIQUE NOT NULL,
+            percent    INTEGER NOT NULL CHECK (percent BETWEEN 1 AND 100),
+            active     BOOLEAN NOT NULL DEFAULT TRUE,
+            times_used INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
     await pool.query(`
         CREATE TABLE IF NOT EXISTS contact_messages (
             id         SERIAL PRIMARY KEY,

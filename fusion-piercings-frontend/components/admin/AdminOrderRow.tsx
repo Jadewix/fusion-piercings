@@ -83,6 +83,9 @@ function AdminOrderRowBase({ order, isExpanded, onToggleExpand, onUpdateStatus }
               <h4 className="text-[0.65rem] font-semibold tracking-[0.16em] uppercase text-ink-3 mb-3">Payment Summary</h4>
               <div className="space-y-1.5 text-[0.82rem] text-ink">
                 <p className="flex justify-between"><span className="text-ink-3">Subtotal</span> <span>${Number(order.subtotal).toFixed(2)}</span></p>
+                {order.promo_code && (
+                  <p className="flex justify-between"><span className="text-ink-3">Promo {order.promo_code}</span> <span className="text-green-600">−${Number(order.discount_amount ?? 0).toFixed(2)}</span></p>
+                )}
                 <p className="flex justify-between"><span className="text-ink-3">Delivery</span> <span>{Number(order.delivery_fee) === 0 ? 'Free' : `$${Number(order.delivery_fee).toFixed(2)}`}</span></p>
                 <p className="flex justify-between font-semibold border-t border-border-lt pt-1.5 mt-1.5"><span>Total (COD)</span> <span>${Number(order.total_amount).toFixed(2)}</span></p>
               </div>

@@ -6,12 +6,14 @@ import { Product, Order, OrderStatus } from '@/lib/types';
 import AdminProductModal from '@/components/AdminProductModal';
 import AdminProductRow from '@/components/admin/AdminProductRow';
 import AdminOrderRow from '@/components/admin/AdminOrderRow';
+import AdminPromoCodes from '@/components/admin/AdminPromoCodes';
+import ErrorState from '@/components/admin/ErrorState';
 import Pagination from '@/components/ui/Pagination';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import { PageMeta } from '@/lib/pagination';
 
 type ViewMode = 'active' | 'inactive';
-type DashboardView = 'inventory' | 'orders';
+type DashboardView = 'inventory' | 'orders' | 'promos';
 
 interface Inventory {
     active:   Product[];
@@ -19,22 +21,6 @@ interface Inventory {
 }
 
 const ORDERS_PAGE_SIZE = 20;
-
-// ─── Small presentational helpers (module scope = not recreated per render) ──
-
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-    return (
-        <div className="text-center py-16">
-            <p className="text-ink-2 text-sm mb-5">{message}</p>
-            <button
-                onClick={onRetry}
-                className="px-6 py-2.5 text-[0.72rem] font-semibold tracking-[0.1em] uppercase border border-ink text-ink rounded-sm hover:bg-ink hover:text-bg transition-all"
-            >
-                Try Again
-            </button>
-        </div>
-    );
-}
 
 export default function AdminDashboard() {
 
@@ -275,6 +261,7 @@ export default function AdminDashboard() {
     const dashOptions: { key: DashboardView; label: string; title: string }[] = [
         { key: 'inventory', label: 'Inventory Dashboard', title: 'Inventory Dashboard' },
         { key: 'orders',    label: 'Orders Dashboard',    title: 'Orders Dashboard'    },
+        { key: 'promos',    label: 'Promo Codes',         title: 'Promo Codes'         },
     ];
     const currentDash = dashOptions.find(d => d.key === dashboardView)!;
 
@@ -523,6 +510,9 @@ export default function AdminDashboard() {
                         )}
                     </section>
                 )}
+
+                {/* ─── PROMO CODES ──────────────────────────────────────────────── */}
+                {dashboardView === 'promos' && <AdminPromoCodes offlineOr={offlineOr} />}
 
             </div>
 
