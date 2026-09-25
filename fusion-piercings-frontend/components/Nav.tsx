@@ -1,10 +1,11 @@
 // components/Nav.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
+import SearchPanel from '@/components/SearchPanel';
 
 type Subcat = { label: string; category: string };
 
@@ -44,6 +45,8 @@ export default function Nav() {
   const [mobileShopOpen, setMobileShopOpen] = useState(false);
   const [mobileExpandedCat, setMobileExpandedCat] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('home');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
   const pathname = usePathname();
   const { cartCount, openCart } = useCart();
 
@@ -84,13 +87,13 @@ export default function Nav() {
 
   return (
       <nav className={`fixed top-0 left-0 right-0 z-[900] transition-all duration-300 ${
-          scrolled ? 'bg-bg/95 backdrop-blur-xl border-b border-border' : ''
+          scrolled || searchOpen ? 'bg-bg/95 backdrop-blur-xl border-b border-border' : ''
       }`}>
         <div className="relative max-w-[1280px] mx-auto px-4 sm:px-8 py-5 flex items-center">
 
           <button
               className="md:hidden p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all"
-              onClick={() => setMobileOpen(v => !v)}
+              onClick={() => { setSearchOpen(false); setMobileOpen(v => !v); }}
               aria-label="Menu"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -195,7 +198,12 @@ export default function Nav() {
           </ul>
 
           <div className="flex items-center gap-1 ml-auto">
-            <button className="hidden md:flex p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all" aria-label="Search">
+            <button
+                onClick={() => { setMobileOpen(false); setSearchOpen(v => !v); }}
+                className="flex p-1.5 rounded-full text-ink hover:text-ink hover:bg-ink/5 transition-all"
+                aria-label="Search"
+                aria-expanded={searchOpen}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
               </svg>
@@ -215,6 +223,8 @@ export default function Nav() {
             </button>
           </div>
         </div>
+
+        <SearchPanel open={searchOpen} onClose={closeSearch} />
 
         {mobileOpen && (
             <div className="md:hidden bg-bg/98 backdrop-blur-xl border-t border-border px-6 pb-4">

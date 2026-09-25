@@ -289,6 +289,17 @@ app.get('/api/products', async (req, res) => {
         params.push(material_tag);
         conditions.push(`$${params.length} = ANY(material_tags)`);
     }
+    // Free-text search for the nav search bar. Every whitespace-separated word
+    // must appear somewhere in the name or description, so "gold hoop" finds
+    // "Gold Plated Clicker Hoop". LIKE wildcards in the input are escaped so a
+    // stray "%" or "_" is matched literally.
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+    if (q) {
+        for (const word of q.split(/\s+/).slice(0, 8)) {
+            params.push(`%${word.replace(/[\\%_]/g, '\\$&')}%`);
+            conditions.push(`(name ILIKE $${params.length} OR COALESCE(description, '') ILIKE $${params.length})`);
+        }
+    }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
